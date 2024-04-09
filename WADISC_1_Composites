@@ -1,0 +1,597 @@
+//================================== ANNUAL SCPECTRAL COMPOSITE SCRIPT USAGE ===========================================//
+//  1. Change the year in line 13       
+//  2. If exporting out to Google Drive (GD) see lines 20-22
+//  2. If exporting to Google Earth Engine (GEE), see line 25 - 34
+//  4. Specify the country in line 60
+//  5. Specify the ecological regions for the selected country in lines 92-94
+//  6. The default output export location is GEE Asset (line 565), or if you rather export to GD, change line 568 to true
+
+
+// =====================================================================================================================//
+//                    STEP ONE: DETERMINE THE YEAR, OUTPUT DATA NAME AND EXPORT FOLDER PATH
+// =====================================================================================================================//
+var yearC =  2001; // Study/Current year
+
+// Determine time window for compositing images, 1, 2, 3
+// One year composite is used here
+var yearS = yearC +'-01-01'; // Beginning of current year
+var yearE = yearC +'-12-31'; // End of current year
+
+// Destination folder in your Google Drive (GD), if applicable
+// If exporting image to GD, create a folder in you GD then paste folder name in space provided below
+var myGoogleDrive_Folder = 'kora0003'; //***** User input as desired
+
+// Path to main GEE assets 
+var main_projectAsset1 = 'projects/ee-koraha/assets/';//***** User input as desired
+var main_projectAsset2 = 'projects/earthengine-legacy/assets/users/koraha/';
+
+// Note that this collection must already exist in the specified path (described above)
+var comp_collection1 = 'NGA_WSS_Composites1/'; ///'Composite_1/';
+var comp_collection2 = 'Ghana_Spectral_Composites/';//'Composite_2/';
+
+// Full path to image collection where the output image composite will be exported
+var composites_Asset1 = main_projectAsset1 + comp_collection1;
+var composites_Asset2 = main_projectAsset2 + comp_collection2;
+
+
+// Determine name for the output data
+var output = 'y'+yearC+'_Annual_IC_Composites';
+
+// Double check that study year and composite period are correctly set
+print('Study year', yearC);
+print('Composite period: ', yearS +' to ' + yearE );
+print('output file', output);
+
+// =====================================================================================================================//
+//                      STEP TWO: IMPORT COUNTRY BOUNDARIES AND ECOLOGICAL ZONES
+// =====================================================================================================================//
+// Subset the West Africa country of interest from the Large Scale International Boundary dataset.
+// Here is the list of the countries in the region and associated FIPS codes
+// Ghana(GH), Togo(TO), Benin(BN), Nigeria(NI), Cote d'Ivoire(IV), Burkina Faso(UV), Niger(NG), Mali(ML), Mauritania(MR),
+// Gambia, The(GA), Senegal(SG), Guinea-Bissau(PU), Guinea(GV), Liberia(LI), Sierra Leone(SL), Cape Verde(CV)
+var countries = ee.FeatureCollection("USDOS/LSIB_SIMPLE/2017");
+var Ghana = countries.filter(ee.Filter.eq('country_co', 'GH'));
+var Togo = countries.filter(ee.Filter.eq('country_co', 'TO'));
+var Benin = countries.filter(ee.Filter.eq('country_co', 'BN'));
+var TB = Togo.merge(Benin);
+var Nigeria = countries.filter(ee.Filter.eq('country_co', 'NI'));
+
+// Specify the country: Use Ghana, TB and Nigeria
+var studycountries = Ghana;
+
+//Map and zoom to studycountries
+Map.centerObject(studycountries, 6.5);
+
+/// Ecological boundaries in Ghana: 1) West Sudanian savanna, 2. Guinean forest-savanna, 3. Eastern Guinean forests
+var biomes = ee.FeatureCollection("projects/ee-koraha/assets/Ecoregions");
+
+// Filter ecoregions for Ghana
+var ghana_ecoregions = biomes.filter(ee.Filter.eq('Country', 'Ghana')); //("projects/ee-koraha/assets/mod_ghana_ecoregions");
+
+var Ghana_wss = ghana_ecoregions.filter(ee.Filter.eq('ECO_NAME', 'Western Sudanian Savannah'));
+var Ghana_gfs =ghana_ecoregions.filter(ee.Filter.eq('ECO_NAME', 'Guinea Forest Savannah'));
+var Ghana_egf= ghana_ecoregions.filter(ee.Filter.eq('ECO_NAME', 'Eastern Guinean Forest'));
+
+// Filter ecoregions for Togo and Benin
+var Togo_ecoregions = biomes.filter(ee.Filter.eq('Country', 'Togo'));
+var Benin_ecoregions = biomes.filter(ee.Filter.eq('Country', 'Benin'));
+var TB_ecoregions = Togo_ecoregions.merge(Benin_ecoregions);
+
+var TB_wss = TB_ecoregions.filter(ee.Filter.eq('ECO_NAME', 'Western Sudanian Savannah'));
+var TB_gfs = TB_ecoregions.filter(ee.Filter.eq('ECO_NAME', 'Guinea Forest Savannah'));
+
+// Filter ecoregions for Nigeria
+var Nigeria_ecoregions = biomes.filter(ee.Filter.eq('Country', 'Nigeria'));
+
+var Nigeria_wss = Nigeria_ecoregions.filter(ee.Filter.eq('ECO_NAME', 'Western Sudanian Savannah'));
+var Nigeria_gfs = Nigeria_ecoregions.filter(ee.Filter.eq('ECO_NAME', 'Guinea Forest Savannah'));
+var Nigeria_nlf = Nigeria_ecoregions.filter(ee.Filter.eq('ECO_NAME', 'Nigerian Lowlands Forest'));
+
+
+// Specify ecoregions for each courtry
+var WSS = Ghana_wss;
+var GFS = Ghana_gfs;
+var EGF_NLF = Ghana_egf;
+
+
+// ====================================================================================================================//
+//                      STEP THREE: READ IN LANDSAT DATA AND DEFINE THE STUDY AREA
+// ====================================================================================================================//
+
+//--- Define Landsat surface reflection collection to import as input image ---
+var landsat7 = ee.ImageCollection("LANDSAT/LE07/C02/T1_L2"); // get surface reflectance images from Landsat 8
+var landsat8 = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2"); // get surface reflectance images from Landsat 7
+
+// Create Image Collection-----
+print("Step 1 Create Image Collection");
+
+//Load Landsat Collection 1 Surface Reflectance
+// Landsat 8
+var collection1 = ee.ImageCollection(landsat8)                    // Landsat 8 OLI surface reflectance images
+        .filterDate(yearS, yearE)                                 // filter image collection by date range of composite year
+        .filterBounds(studycountries)                               // filter images by study area boundary 
+        .select(['SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B6', 'SR_B7','QA_PIXEL'], 
+        ['blue', 'green', 'red', 'nir', 'swir1', 'swir2','qa']); // select OLI bands 2-7 and rename them
+
+// Landsat 7
+var collection2 = ee.ImageCollection(landsat7)                    // Landsat 7 ETM surface reflectance images
+        .filterDate(yearS, yearE)                                 // filter image collection by date range of composite year
+        .filterBounds(studycountries)                               // filter images by study area boundary 
+        .select(['SR_B1', 'SR_B2', 'SR_B3', 'SR_B4', 'SR_B5', 'SR_B7','QA_PIXEL'],
+        ['blue', 'green', 'red', 'nir', 'swir1', 'swir2','qa']);  // select ETM bands 1-5,7 and rename them
+
+print(collection1);
+
+//==========================================================================================================//
+// Endmembers for green vegetation, non-photosynthesizing vegetation, soil, and clouds
+//==========================================================================================================//
+var gvem = [412.0, 557.0, 374.0, 4999.0, 1616.0, 518.0];
+var npvem = [656.0, 1179.0, 1976.0, 2569.0, 4854.0, 2741.0];
+var soilem = [1134.0, 1675.0, 2148.0, 2953.0, 4318.0, 3870.0];
+var cloudem = [4031.0, 8714.0, 7900.0, 8989.0, 7002.0, 6607.0];
+
+// --- Cloud masking Landsat QA (FMASK), blue bank, SMA cloud fraction
+function imgFilter(img){
+  var blue = img.select('blue').multiply(0.275).subtract(2000).rename('blue');
+  var green = img.select('green').multiply(0.275).subtract(2000).rename('green');
+  var red = img.select('red').multiply(0.275).subtract(2000).rename('red');
+  var nir = img.select('nir').multiply(0.275).subtract(2000).rename('nir');
+  var swir1 = img.select('swir1').multiply(0.275).subtract(2000).rename('swir1');
+  var swir2 = img.select('swir2').multiply(0.275).subtract(2000).rename('swir2');
+  var qa = img.select('qa').rename('qa');
+  // We want no cirrus, cloud, or shadow
+  var cirrusBitMask = (1 << 2);
+	var cloudsBitMask = (1 << 3);
+	var cloudShadowBitMask = (1 << 4);
+	// Get the pixel QA band.
+	// Flags should be set to zero, indicating clear conditions.
+  var qamask = qa.bitwiseAnd(cirrusBitMask).eq(0)
+    .and(qa.bitwiseAnd(cloudsBitMask).eq(0)
+    .and(qa.bitwiseAnd(cloudShadowBitMask).eq(0)));
+  // Additional screen using blue band
+  var blueMask = img.select(['blue']).lt(900); 
+  // Additional screen using SMA cloud fraction
+  var fractions = img.select('blue', 'red', 'green', 'nir', 'swir1', 'swir2')
+                       .unmix([gvem, npvem, soilem, cloudem])
+                       .max(0).multiply(100)
+                       .byte()
+                       .rename(['gv', 'npv', 'soil', 'cloud']);
+  var maskSMA = fractions.select(['cloud']).lte(4);
+  //var maskf = qamask.add(blueMask).add(maskSMA).gte(3);
+  var maskf = qamask.gte(1);
+  var mask = maskf.neq(0);
+  var outimage = img.addBands({srcImg: blue, overwrite: true})
+                    .addBands({srcImg: green, overwrite: true})
+                    .addBands({srcImg: red, overwrite: true})
+                    .addBands({srcImg: nir, overwrite: true})
+                    .addBands({srcImg: swir1, overwrite: true})
+                    .addBands({srcImg: swir2, overwrite: true})
+                    .addBands({srcImg: qa, overwrite: true});
+  return outimage.mask(mask).toShort();
+}
+
+
+// Map the filter function on Landsat 7
+var collection2Filtered = collection2.map(imgFilter); 
+                            
+//=============================================================================================================//
+
+//============================================================================================================//
+// Harmonize Landsat 8 with Landsat 7
+//============================================================================================================//
+// Function to harmonize Landsat 8 OLI with Landsat 5/7 TM/ETM+
+// Uses coefficients from Roy et al. (2016) RSE
+function l7to8_harmonize(img){
+  // create an image of slopes per band for L8 TO L7 RMA regression line - David Roy
+  var slopes = ee.Image.constant([0.8474, 0.8483, 0.9047, 0.8462, 0.8937, 0.9071]);  
+  // create an image of y-intercepts per band for L8 TO L7 RMA regression line - David Roy
+  var itcp = ee.Image.constant([0.0003, 0.0088, 0.0061, 0.0412, 0.0254, 0.0172])
+                     .multiply(10000);   
+
+  // select OLI bands 
+  var outimg = img.select(['blue', 'green', 'red', 'nir', 'swir1', 'swir2'])
+             .multiply(slopes).add(itcp)
+             .set('system:time_start', img.get('system:time_start'));
+  return outimg.toShort();  
+  //return outimg;  
+}
+
+// Harmonize the Landsat 7 collection to match Landsat 8
+var collection2BFiltered = collection2Filtered.map(l7to8_harmonize).filterDate(yearS, yearE); 
+
+
+// Map the filter function on Landsat 8
+var collection1Filtered = collection1.filterDate(yearS, yearE) 
+                            .map(imgFilter);
+
+// Combine Landsat 7 and 8 into a single image collection
+var landsatFiltered = ee.ImageCollection(collection2BFiltered.merge(collection1Filtered)
+                            .select(['blue', 'green', 'red', 'nir', 'swir1', 'swir2']));
+
+// print("L7: ", collection2Filtered);
+// print("L8: ", collection1Filtered);
+print("Filtered collection: ", landsatFiltered);
+
+// Number of images in the collection
+var size = landsatFiltered.toList(1000).length();
+print('Image count:', size);
+
+// Check date range of images in the collection
+var range = landsatFiltered.reduceColumns(ee.Reducer.minMax(), ["system:time_start"]);
+print('Collection Date Range: ', ee.Date(range.get('min')), ee.Date(range.get('max')));
+ 
+//=====================================================================================================================//
+//                           STEP FOUR: COMPUTE SPECTRAL INDICES
+//=====================================================================================================================//
+print("Step 2: Compute Spectral Indices");
+
+// Tasseled Cap (TC) Coefficients
+var coefficients = ee.Array([
+  [0.2043, 0.4158, 0.5524, 0.5741, 0.3124, 0.2303],
+  [-0.1603, -0.2819, -0.4934, 0.7940, -0.0002, -0.1446],
+  [0.0315, 0.2021, 0.3102, 0.1594, -0.6806, -0.6109]
+  ]);
+
+// Function to map spectral index calculations over image collection
+var add_Indices = function(image){
+ 
+ // 2. Tasseled cap coefficients
+  var bands = image.select('blue', 'green', 'red', 'nir', 'swir1', 'swir2');
+  
+  // Make an Array Image, with a 1-D Array per pixel.
+  var arrayImage1D = bands.toArray();
+
+  // Make an Array Image with a 2-D Array per pixel, 6x1.
+  var arrayImage2D = arrayImage1D.toArray(1);
+
+  // Do a matrix multiplication: 6x3 times 6x1.
+  var componentsImage = ee.Image(coefficients)
+    .matrixMultiply(arrayImage2D)
+    // Get rid of the extra dimensions.
+    .arrayProject([0])
+    .arrayFlatten(
+    [['brightness', 'greenness', 'wetness']]);
+  
+  var br = componentsImage.select(['brightness']);
+  var gr = componentsImage.select(['greenness']);
+  var wt = componentsImage.select(['wetness']);
+
+// Biophysical Compositin Index (BCI)
+  var bci1 = br.add(wt).divide(2).subtract(gr);
+  var bci2 = br.add(wt).divide(2).add(gr);
+  var bci = bci1.divide(bci2).rename('bci');
+
+// Vegetation and moisture indices
+  var ndvi = image.normalizedDifference(['nir', 'red']).rename('ndvi');
+  var mndwi = image.normalizedDifference(['green', 'swir1']).rename('mndwi');
+  var vrbi = image.normalizedDifference(['red', 'nir']).rename('vrbi');
+
+// Additional soil indices
+var bsi = image.expression(
+            '((RED+SWIR1)-(NIR+BLUE)) / ((RED+SWIR1) + (NIR+BLUE))', {
+            'RED': image.select('red'),
+            'SWIR1': image.select('swir1'),
+            'NIR': image.select('nir'),
+            'BLUE':image.select('blue')
+          }).rename('bsi');
+var mbsi = image.expression(
+            '((RED-GREEN)* 2) / ((RED+GREEN) - 2)', {
+            'RED': image.select('red'),
+            'GREEN': image.select('green'),
+          }).rename('mbsi');
+var savi = image.expression(
+            '((NIR-RED) / (NIR + RED + 0.5) * (1.5))', {
+            'NIR': image.select('nir'),
+            'RED': image.select('red')
+          }).rename('savi');
+var osavi = image.expression(
+            '((NIR-RED) / (NIR + RED + 0.16))', {
+            'NIR': image.select('nir'),
+            'RED': image.select('red')
+          }).rename('osavi');         
+//===============================================================================
+// Burn area indices
+//===============================================================================
+var nbri = image.normalizedDifference(['nir', 'swir1']).rename('nbri');
+
+//===============================================================================
+// Built-up indices
+// bui // He et al. (2010)// ndcci  // Samsudin et al. (2016)// baei   
+// Built up area extraction index - Bouzekri et al.(2015)// nbi 
+// The New Built up index - Jieli et al.(2010)
+// Normalized Built up  Area Index - Waqar et al. (2012
+// brba // The Band Ratio for Built up  Area Index - Waqar et al. (2012)
+var ndbi = image.normalizedDifference(['swir1', 'nir']).rename('ndbi');
+var urban_index = image.normalizedDifference(['swir2','nir']).rename('uid');
+var baei = image.expression(                           
+              '(RED + 0.3)/(GREEN + SWIR1)', {
+              'RED': image.select('red'),
+              'GREEN': image.select('green'),
+              'SWIR1': image.select('swir1')
+            }).rename('baei');
+var savi_wi = (savi.add(mndwi)).divide(2);
+var ibi1 = ndbi.subtract(savi_wi);
+var ibi2 = ndbi.add(savi_wi);
+var ibi = ibi1.divide(ibi2).rename('ibi');
+var cbci = mbsi.multiply(1.5).subtract(osavi).add(0.5).rename('cbci');
+var nbai =image.expression(                             
+              '((SWIR2 - SWIR1)/GREEN) / ((SWIR2 + SWIR1)/GREEN)', {
+                'SWIR2': image.select('swir2'),
+                'SWIR1': image.select('swir1'),
+                'GREEN': image.select('green')
+              }).rename('nbai');
+var brba = image.expression(                            
+              '(RED)/(SWIR1)', {
+               'RED': image.select('red'),
+               'SWIR1': image.select('swir1')
+              }).rename('brba');
+  return image.addBands(ndvi)
+              .addBands(nbri)
+              .addBands(bsi)
+              .addBands(ndbi)
+              .addBands(urban_index)
+              .addBands(baei)
+              .addBands(cbci)
+              .addBands(nbai)
+              .addBands(brba)
+              .addBands(bci)
+              .addBands(vrbi);
+};
+
+// Map the spectral index function over the combined Landsat 7 and 8 image collection
+var LS_Spectral_Indices = landsatFiltered.map(add_Indices);
+//print("Calculate Indices: ", LS_Spectral_Indices);
+
+//=====================================================================================================================//
+//                        STEP FIVE: Create ANNUAL COMPOSITES OF THE INPUT SPECTRAL DATA
+//=====================================================================================================================//
+print("Step 5 Create Annual Image Composites of Spectral Indices");
+
+// For each index:
+// 1. Filter between start/end dates
+// 2. Compute the quantile value for each pixel
+// 3. Rename to maintain name of indices
+// 5. Convert pixel values to float type
+//=====================================================================================================================//
+
+// Use quantiles to genetrate the spectral indices for Western Sudanian Savannah
+var ann_image_wss = LS_Spectral_Indices.select('ndvi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([75]))
+                  .rename('ndvi')
+                  .float()
+                .addBands(LS_Spectral_Indices.select('vrbi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([40]))
+                  .rename('vrbi')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('baei')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([10]))
+                  .rename('baei')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('brba')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('brba')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('cbci')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('cbci')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('bsi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([10]))
+                  .rename('bsi')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('bci')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([10]))
+                  .rename('bci')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('ndbi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('ndbi')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('uid')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('uid')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('nbai')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('nbai')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('nbri')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([15]))
+                  .rename('nbri')
+                  .float())
+                .set('year', yearC);
+
+var ann_image_composite_wss = ann_image_wss.clip(WSS);
+
+// Use quantiles to genetrate the spectral indices for Guinea Forest Savannah
+var ann_image_gfs = LS_Spectral_Indices.select('ndvi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([85]))
+                  .rename('ndvi')
+                  .float()
+                .addBands(LS_Spectral_Indices.select('vrbi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([40]))
+                  .rename('vrbi')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('baei')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('baei')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('brba')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('brba')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('cbci')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('cbci')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('bsi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([10]))
+                  .rename('bsi')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('bci')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([10]))
+                  .rename('bci')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('ndbi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('ndbi')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('uid')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('uid')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('nbai')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('nbai')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('nbri')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([40]))
+                  .rename('nbri')
+                  .float())
+                .set('year', yearC);
+
+var ann_image_composite_gfs = ann_image_gfs.clip(GFS);
+
+// Use quantiles to genetrate the spectral indices for Eastern Guinea Forest or Nigeria Lowlands Forest
+var ann_image_egf_nlf = LS_Spectral_Indices.select('ndvi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([55]))
+                  .rename('ndvi')
+                  .float()
+                .addBands(LS_Spectral_Indices.select('vrbi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([40]))
+                  .rename('vrbi')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('baei')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([15]))
+                  .rename('baei')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('brba')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('brba')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('cbci')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([15]))
+                  .rename('cbci')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('bsi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([25]))
+                  .rename('bsi')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('bci')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([10]))
+                  .rename('bci')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('ndbi')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('ndbi')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('uid')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([10]))
+                  .rename('uid')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('nbai')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([5]))
+                  .rename('nbai')
+                  .float())
+                .addBands(LS_Spectral_Indices.select('nbri')
+                  .filterDate(yearS, yearE)
+                  .reduce(ee.Reducer.percentile([15]))
+                  .rename('nbri')
+                  .float())
+                .set('year', yearC);
+
+var ann_image_composite_egf_nlf = ann_image_egf_nlf.clip(EGF_NLF);
+
+// Combine the spectral indices for the various ecological zones
+var ann_image_composite = ann_image_composite_wss.blend(ann_image_composite_gfs)
+.blend(ann_image_composite_egf_nlf);
+
+//print ('Filtered qauntile composite', ann_image_composite);
+
+//=====================================================================================================================//
+//                   STEP SIX: VISUALIZE THE COMPOSITE: SUBSET BANDS TO DISPLAY
+//=====================================================================================================================//
+Map.addLayer(ann_image_composite, {bands: 'ndbi', min: -0.6, max: 0.0}, 'NDBI', 0);
+Map.addLayer(ann_image_composite, {bands: 'nbri', min: -0.3, max: 0.5}, 'NBRI', 0);
+Map.addLayer(ann_image_composite, {bands: 'ndvi', min: 0, max: 1.0}, 'NDVI', 0);
+Map.addLayer(ann_image_composite, {bands: 'nbai', min: -0.5, max: -0.2}, 'NBAI', 0);
+Map.addLayer(ann_image_composite, {bands: 'baei', min: 0.0, max: 0.5}, 'BAEI', 0);
+Map.addLayer(ann_image_composite, {bands: 'brba', min: 0.2, max: 1.0}, 'BRBA', 0);
+Map.addLayer(ann_image_composite, {bands: 'bci', min: -0.5, max: 0.5}, 'BCI', 0);
+Map.addLayer(ann_image_composite, {bands: 'bsi', min: -0.3, max: 0.2}, 'BSI', 0);
+Map.addLayer(ann_image_composite, {bands: 'cbci', min: 0.0, max: 2.5}, 'CBCI', 0);
+Map.addLayer(ann_image_composite, {bands: 'uid', min: -1.0, max: -0.1}, 'UID', 0);
+Map.addLayer(ann_image_composite, {bands: 'vrbi', min: -0.8, max: 0.2}, 'VRBI', 0);
+
+
+//=====================================================================================================================//
+//                          STEP SEVEN: EXPORT DATA TO GEE ASSET (OR GOOGLE DRIVE)
+//=====================================================================================================================//
+print("Step 7: Export Image Composites");
+
+// Exporting data to GEE Asset
+var exportImg = true;
+
+// Exporting data to Google Drive
+var exportImgDrive = false;
+
+
+if(exportImg){
+      // 
+      Export.image.toAsset({
+        image: ann_image_composite, // image to export
+        description: output, // file name of exported image
+        scale: 30, // pixel size
+        assetId: composites_Asset2 + output,// export image to this path in GEE asset
+        region: studycountries, //aoi of image area to export
+        maxPixels: 1e13
+      });
+} else {}
+
+
+if(exportImgDrive){
+      // 
+      Export.image.toDrive({
+        image: ann_image_composite, // image to export
+        description: output, // file name of exported image
+        scale: 30, // pixel size
+        folder: myGoogleDrive_Folder, // Destination folder in your Google Drive
+        region: studycountries, // image area to export
+        maxPixels: 1e13
+
+      });
+} else {}
+
+print("END");

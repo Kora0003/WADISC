@@ -1,0 +1,415 @@
+// ==================== LANDTRENDR TEMPORAL SEGMENTATION SCRIPT USAGE ==================================================//
+//    1. Select the year for downlonad in line 16
+//    2. Create or select the asset to export the output in line 26
+//    3. Create or select the google drive folder to export the output in line 33
+//    4. To run LandTrendr for any of the countries input Ghana, BT or Nigeria in script line 48
+//    5. Comment on and off between script lines 67 - 70 to select the predicted  Random forest impervious cover for the country
+//    6. Select the corresponding validation data using either Ghana_val_pts, BT_val_pts, or Nigeria_val_pts in script line 87
+//    7. The default output export location is GEE Asset (line 382), or if you rather export to GD, change line 386 to true
+
+
+// =====================================================================================================================//
+//                    STEP ONE: DETERMINE THE YEAR, OUTPUT DATA NAME AND EXPORT FOLDER PATH
+// =====================================================================================================================//
+// Specify the beginning year to ran the Random Forest model, and year to download
+// User input of the year to be summarized and exported, from 2001 to the present year
+var yearC = 2020;       
+
+// Initial year and final year in the time series - this should remain set to 2001
+var year_init = 2001;
+var year_final = 2020;
+
+// Set up paths to GEE assets ==================================================================================//
+
+// Path to ImageCollection where LandTrendR output will be saved
+//var imperviouslt_Asset = 'projects/earthengine-legacy/assets/users/koraha/ImperviousCov_LT_1y/';
+var imperviouslt_Asset = 'projects/ee-koraha/assets/TB_ImperCov_LT_1y/';//***** User input as desired
+
+// Name of the LandTrendR output image to be saved
+var outfile_name ='ImperCov_LT_' + yearC; 
+
+// If desired, destination folder in your Google Drive (GD) where LT-fitted out images will be exported
+// If exporting image to GD, create a folder in your GD then paste folder name in space provided below
+var myGoogleDrive_Folder = 'kora0003/WADISC_NGA_WSS1_Imper_Cover'; //***** User input as desired
+
+//======================================================================================================================//
+//              STEP TWO: READ IN COUNTRY BOUNDARIES FOR THE STUDY AREA
+//======================================================================================================================// 
+// Subset the West Africa country of interest from the Large Scale International Boundary dataset.
+// Here is the list of the countries in the region and associated FIPS codes
+// Ghana(GH), Togo(TO), Benin(BN), Nigeria(NI), Cote d'Ivoire(IV), Burkina Faso(UV), Niger(NG), Mali(ML), Mauritania(MR),
+// Gambia, The(GA), Senegal(SG), Guinea-Bissau(PU), Guinea(GV), Liberia(LI), Sierra Leone(SL), Cape Verde(CV)
+var countries = ee.FeatureCollection("USDOS/LSIB_SIMPLE/2017");
+var Ghana = countries.filter(ee.Filter.eq('country_co', 'GH'));
+var Togo = countries.filter(ee.Filter.eq('country_co', 'TO'));
+var Benin = countries.filter(ee.Filter.eq('country_co', 'BN'));
+var TB = Togo.merge(Benin);
+var Nigeria = countries.filter(ee.Filter.eq('country_co', 'NI'));
+
+// Indicate the study country: Ghana, BT for Benin and Togo, or Nigeria
+var studycountries = Nigeria;
+
+// Center and Zoom
+Map.centerObject(studycountries, 7); 
+
+//======================================================================================================================//
+//                STEP THREE: READ IN IMAGE COLLECTION OF PREDICTED IMPERVIOUS COVER FROM RANDOM FOREST, AND VALIDATION DATA
+//======================================================================================================================//
+//var ann_ic1yr = ee.ImageCollection("projects/ee-koraha/assets/Ghana_ImperCov_RF_1y").filterDate('2001', '2021');
+//var ann_ic1yr = ee.ImageCollection("projects/ee-koraha/assets/Benin_Togo_ImperCov_RF_1y").filterDate('2001', '2021');//.filter(ee.Filter.gte('year', 2001)).
+//var ann_ic1yr = ee.ImageCollection("projects/ee-koraha/assets/Nigeria_NLF_GFS_ImperCov_RF_1y").filterDate('2001', '2021');
+var ann_ic1yr = ee.ImageCollection("projects/ee-koraha/assets/Nigeria_WSS_ImperCov_RF_1y").filterDate('2001', '2021');
+print(ann_ic1yr, "Predicted Impervious Cover from Random Forests");
+
+//Import the validation data for assessing the performs of the impervious cover predictions 
+var Ghana_val_pts = ee.FeatureCollection("projects/ee-koraha/assets/Ghana_Validation_Points");
+var TB_val_pts = ee.FeatureCollection("projects/ee-koraha/assets/BT_Validation_Points");
+var Nigeria_val_pts = ee.FeatureCollection("projects/ee-koraha/assets/NGA_Validation_Points");
+
+// Validation points. Use Ghana_val_pts, BT_val_pts, or Nigeria_val_pts
+var val_pts = Nigeria_val_pts.filter(ee.Filter.gte('Year', 2001)).filter(ee.Filter.lte('Year', 2020));
+//print(val_pts, "Validation Points");
+
+
+//======================================================================================================================//
+//                  STEP FOUR: DEFINE LANDTRENDR PARAMETERS  
+//======================================================================================================================//
+print("Step 4: Define LandTrendr Parameters");
+
+// --- Set base parameters for the analysis - start and end years/dates -----//
+  // Define starting and ending years of the times series
+var startyear = year_init;
+var endyear = year_final;
+
+var distDir = -1; // define the sign of spectral delta for vegetation loss for the segmentation index - 
+                  // Impervious Cover delta is negative for vegetation loss
+
+// --- Define the LandTrendr run parameters
+// For details to these parameters, reference: Kennedy, R. E., Yang, Z., & Cohen, W. B. (2010). Detecting trends in forest disturbance and recovery 
+// using yearly Landsat time series: 1.LandTrendr—Temporal segmentation algorithms. Remote Sensing of Environment, 114(12), 2897-2910.
+
+var run_params = { 
+  maxSegments:            6,          // Maximum number of segments to be fitted on the time series
+  spikeThreshold:         0.75,        // Threshold for dampening the spikes. i.e This parameter will remove noise. Value of 1.0 (or 100 for % values) means no dampening
+  vertexCountOvershoot:   2,          // The inital model can overshoot the maxSegments + 1 vertices by this amount. Later, it will be prunned down to maxSegments + 1
+  preventOneYearRecovery: true,       // Prevent segments that represent one year recoveries (Boolean: true of false)        
+  recoveryThreshold:      0.01,       // If a segment has a recovery rate faster than 1/recoveryThreshold (in years), then the segment is disallowed
+  pvalThreshold:          0.05,       // If the p-value of the fitted model exceeds this threshold, then the current model is discarded and another one is fitted using the Levenberg-Marquardt optimizer
+  bestModelProportion:    0.5,        // Takes the model with most vertices that has a p-value that is at most this proportion away from the model with lowest p-value
+  minObservationsNeeded:  6           // Min observations needed to perform output fitting
+};
+
+//=====================================================================================================================//
+//                    STEP FIVE: RUN THE LANDTRENDT ALGORITHM
+//=====================================================================================================================//
+print("Step 5: Run LandTrendr");
+// The next section implements LandTrendr processing of continuous canopy cover
+// Adapted from the example code provided by Yang/Braaten/Kennedy
+
+// --- Create a temporary collection with cc values
+// Build the image collection based on the cc values (cc is termed classification in the image properties)
+var ltCollection1yr_tmp = ann_ic1yr.select(['classification']);
+
+// Need to then create a new version of the segmentation index
+// Multiply by -1 so that larger values indicate more disturbance
+var indexNameFTV = 'IC_FTV' ;                                                     // create a name for the to-be-fitted band - get the name of the segmentation index and append "_FTV"
+var ltAddband = function(img) {                                                   // start anonymous function to add the band
+  return img.addBands(img.select([0],[indexNameFTV])                              // duplicate the segmentation index as a second band using the name that was just created
+                         .multiply(distDir))                                      // ...flip the values around so that it is back to its original orientation
+                         .set('system:time_start', img.get('system:time_start')); // ...set the output system:time_start metadata to the input image time_start otherwise it is null                                 
+};
+
+var ltCollection1yr = ltCollection1yr_tmp.map(ltAddband);
+
+run_params.timeSeries = ltCollection1yr;                                 // add LT collection to the segmentation run parameter object - 1 yr composite
+var lt1yr = ee.Algorithms.TemporalSegmentation.LandTrendr(run_params);   // run LandTrendr spectral temporal segmentation algorithm - 1 yr composite
+
+print('LandTrendr Results', lt1yr);
+
+// ----- FUNCTION TO EXTRACT VERTICES FROM LT RESULTS AND STACK BANDS -----
+var getLTvertStack = function(LTresult) {
+  var emptyArray = [];                              // make empty array to hold another array whose length will vary depending on maxSegments parameter    
+  var vertLabels = [];                              // make empty array to hold band names whose length will vary depending on maxSegments parameter 
+  var iString;                                      // initialize variable to hold vertex number
+  for(var i=1;i<=run_params.maxSegments+1;i++){     // loop through the maximum number of vertices in segmentation and fill empty arrays
+    iString = i.toString();                         // define vertex number as string 
+    vertLabels.push("vert_"+iString);               // make a band name for given vertex
+    emptyArray.push(0);                             // fill in emptyArray
+  }
+  
+  var zeros = ee.Image(ee.Array([emptyArray,        // make an image to fill holes in result 'LandTrendr' array where vertices found is not equal to maxSegments parameter plus 1
+                                 emptyArray,
+                                 emptyArray]));
+  
+  var lbls = [['yrs_','src_','fit_'], vertLabels,]; // labels for 2 dimensions of the array that will be cast to each other in the final step of creating the vertice output 
+
+  var vmask = LTresult.arraySlice(0,3,4);           // slices out the 4th row of a 4 row x N col (N = number of years in annual stack) matrix, which identifies vertices - contains only 0s and 1s, where 1 is a vertex (referring to spectral-temporal segmentation) year and 0 is not
+  
+  var ltVertStack = LTresult.arrayMask(vmask)       // uses the sliced out isVert row as a mask to only include vertice in this data - after this a pixel will only contain as many "bands" are there are vertices for that pixel - min of 2 to max of 7. 
+                      .arraySlice(0, 0, 3)          // ...from the vertOnly data subset slice out the vert year row, raw spectral row, and fitted spectral row
+                      .addBands(zeros)              // ...adds the 3 row x 7 col 'zeros' matrix as a band to the vertOnly array - this is an intermediate step to the goal of filling in the vertOnly data so that there are 7 vertice slots represented in the data - right now there is a mix of lengths from 2 to 7
+                      .toArray(1)                   // ...concatenates the 3 row x 7 col 'zeros' matrix band to the vertOnly data so that there are at least 7 vertice slots represented - in most cases there are now > 7 slots filled but those will be truncated in the next step
+                      .arraySlice(1, 0, run_params.maxSegments+1) // ...before this line runs the array has 3 rows and between 9 and 14 cols depending on how many vertices were found during segmentation for a given pixel. this step truncates the cols at 7 (the max verts allowed) so we are left with a 3 row X 7 col array
+                      .arrayFlatten(lbls, '');      // ...this takes the 2-d array and makes it 1-d by stacking the unique sets of rows and cols into bands. there will be 7 bands (vertices) for vertYear, followed by 7 bands (vertices) for rawVert, followed by 7 bands (vertices) for fittedVert, according to the 'lbls' list
+
+  return ltVertStack;                               // return the stack
+};
+
+var ltVertStack1yr = getLTvertStack(lt1yr.select(["LandTrendr"])); // select out the "LandTrendr" band
+
+// extract the segmentation-fitted index stack 
+var years = [];                                                           // make an empty array to hold year band names
+for (var i = startyear; i <= endyear; ++i) years.push('yr'+i.toString()); // fill the array with years from the startYear to the endYear and convert them to string
+var ltFitStack1yr = lt1yr.select([1])                                     // select out the 2nd band data which is the segmentation-fitted spectral index 
+                   .arrayFlatten([years]);                                // ...flatten is out into band, assigning the year as the band name
+print(ltFitStack1yr, "ltfitstack");
+
+// The previous code provides the LandTrendr fitted impervious cover images as a multi-band image (one band for each year)
+// The following code converts the image into a collection (one image for each year)
+var bnames = ltFitStack1yr.bandNames();                                      // Get a list of the band names
+
+// The following function extracts each image band from the multiband image and returns it as a single-band image
+// Also multiply distDir again to return the index to its original positive values
+function extract_band1yr(curband) {                              
+  var curimage =  ltFitStack1yr.select([curband])
+                            .rename('ic_fit')
+                            .multiply(distDir);
+  var curyearstr = ee.String(curband).slice(-4);
+  var curyear = ee.Number.parse(curyearstr);
+  return curimage.set('date', ee.Date.fromYMD(curyear, 1, 1))
+                 .set('system:time_start', ee.Date.fromYMD(curyear, 1, 1).millis());
+}
+
+// Use the function to create the image collection
+var ltFitCollection1yr = ee.ImageCollection(bnames.map(extract_band1yr));
+
+print('Fitted LandTrendr Impervious Cover', ltFitCollection1yr);
+
+
+//=====================================================================================================================//
+//                      STEP SIX: GRAPHICAL USER INTERFACE
+//=====================================================================================================================//
+print("Step 6: Graphical User Interface");
+
+// This section creates maps and a GUI to display the results
+// Color ramp for mapping percent Impervious cover
+var ic_intervals =
+  '<RasterSymbolizer>' +
+    '<ColorMap  type="intervals" extended="false" >' +
+      '<ColorMapEntry color="#edf8e9" quantity="20" label="0-20"/>' +
+      '<ColorMapEntry color="#74c476" quantity="60" label="20-60" />' +
+      '<ColorMapEntry color="#006d2c" quantity="120" label="60-120" />' +
+    '</ColorMap>' +
+  '</RasterSymbolizer>';
+
+// Add layers to the map
+var cc_vis = {min:20, max:100, palette: ['#edf8e9', '#006d2c']};
+
+// Map layers for each year
+Map.addLayer(ltFitStack1yr.select(['yr2001']).multiply(-1).sldStyle(ic_intervals), {}, '2001 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2002']).multiply(-1).sldStyle(ic_intervals), {}, '2002 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2003']).multiply(-1).sldStyle(ic_intervals), {}, '2003 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2004']).multiply(-1).sldStyle(ic_intervals), {}, '2004 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2005']).multiply(-1).sldStyle(ic_intervals), {}, '2005 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2006']).multiply(-1).sldStyle(ic_intervals), {}, '2006 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2010']).multiply(-1).sldStyle(ic_intervals), {}, '2010 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2015']).multiply(-1).sldStyle(ic_intervals), {}, '2015 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2016']).multiply(-1).sldStyle(ic_intervals), {}, '2016 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2017']).multiply(-1).sldStyle(ic_intervals), {}, '2017 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2018']).multiply(-1).sldStyle(ic_intervals), {}, '2018 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2019']).multiply(-1).sldStyle(ic_intervals), {}, '2019 (1 yr)', false);
+Map.addLayer(ltFitStack1yr.select(['yr2020']).multiply(-1).sldStyle(ic_intervals), {}, '2020 (1 yr)', false);
+
+// Create a panel to hold our widgets.
+var panel = ui.Panel();
+panel.style().set('width', '500px');
+
+// Create an intro panel with labels.
+var intro = ui.Panel([
+  ui.Label({
+    value: 'Impervious Cover Chart Inspector',
+    style: {fontSize: '20px', fontWeight: 'bold'}
+  }),
+  ui.Label('Click a point on the map to inspect.')
+]);
+panel.add(intro);
+
+// Create panels to hold lon/lat values.
+var lon = ui.Label();
+var lat = ui.Label();
+panel.add(ui.Panel([lon, lat], ui.Panel.Layout.flow('horizontal')));
+
+// Register a callback on the default map to be invoked when the map is clicked.
+Map.onClick(function(coords) {
+  // Update the lon/lat panel with values from the click event.
+  lon.setValue('lon: ' + coords.lon.toFixed(2)),
+  lat.setValue('lat: ' + coords.lat.toFixed(2));
+
+  // Add a red dot for the point clicked on.
+  var point = ee.Geometry.Point(coords.lon, coords.lat);
+  var dot = ui.Map.Layer(point, {color: 'FF0000'});
+  // The number here must be equal to the number of map layers that are being displayed
+  // The 16 map layers in the legend are numbered 0-15. This layer (number 16) is for the dot that is displayed when you click
+  Map.layers().set(8, dot);
+
+  // Create an chart of annual summaries of cc 1 yr
+  var ic1yrChart = ui.Chart.image.series(ann_ic1yr.select(['classification']), point, ee.Reducer.mean(), 30, 'year' )
+    .setSeriesNames(['IC (1-year)'])
+    .setOptions({
+      title: 'RF Impervious Cover (1-year composite)',
+      lineWidth: 1.5,
+      pointSize: 5,
+      colors: ['#e7298a'],
+      vAxis: {
+        title: 'Impervious (%)',
+        minValue: 0,
+        maxValue: 100,
+      },
+      hAxis: {
+        format: '####',
+        title: 'Year',
+      },
+  });
+  panel.widgets().set(2, ic1yrChart);
+
+  // Create a chart of the fitted LandTrendr values
+  var ic1yrfChart = ui.Chart.image.series(ltFitCollection1yr.select(['ic_fit']), point, ee.Reducer.mean(), 30, 'date' )
+    .setSeriesNames(['IC (1-year)'])
+    .setOptions({
+      title: 'LandTrendr Fitted Impervious Cover (1-year composite)',
+      lineWidth: 1.5,
+      pointSize: 5,
+      colors: ['#e7298a'],
+      vAxis: {
+        title: 'Impervious (%)',
+        minValue: 0,
+        maxValue: 100,
+      },
+      hAxis: {
+       // format: '####',
+        title: 'Year',
+      },
+  });
+  panel.widgets().set(3, ic1yrfChart);
+
+});
+
+// Set the cursor
+Map.style().set('cursor', 'crosshair');
+
+// Add the panel to the ui.root.
+ui.root.insert(0, panel);
+
+
+//=====================================================================================================================//
+//                   STEP SEVEN: SUBSET LT LT-FITTED IMAGE FOR STUDY YEAR Image For Study Year
+//=====================================================================================================================//
+print("Step 7: Subset LT-fitted Image");
+
+// Convert the LandTrendr-processed image collection to a list
+var outimage_list = ltFitCollection1yr.toList(ltFitCollection1yr.size());
+
+//--- Subset image for a study year to export ---
+// Make a list of years based on our study period. NB: Study year cannot be outside range of study period
+//var year_list = ee.List.sequence(startyear, endyear, 1);
+
+// Function to generate index for the study year  
+var year_index = function(curyear) {
+  if (curyear < startyear || curyear > endyear ) {
+  print("Invalid Study Year! Study year range "+ startyear + ' to '+ endyear);
+  }
+  // Convert year list to year index
+  var curyear_index = ee.Number(curyear).subtract(startyear);
+  return curyear_index;
+};
+
+// Use function above to get index of study year
+var index_studyYear = year_index(yearC);
+
+// Extract the image from the image list
+var out_image = ee.Image(outimage_list.get(index_studyYear)).set('year', yearC)
+                                                            .set('date', yearC +'-01-01')
+                                                            .set('system:time_start', ee.Date.fromYMD(yearC, 1,1).millis())
+                                                            .uint8();           
+
+print('Subset IC image to export: ' + yearC, out_image);
+
+//=====================================================================================================================//
+// STEP EIGHT: OVERLAY VALIDATION POINTS ON LT-FITTED IMPERVIOUS COVER FOR ACCURACY ASSESSMENT
+//=====================================================================================================================//
+print("Step 8: Overlay validation points on LT Impervious Cover");
+
+var sumyear = [2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020];
+
+function overlay_pts2(inyear) {
+  var baseyr = inyear; // Year of base image to import for RF training 
+  var base_img = ee.Image(outimage_list.get(baseyr - year_init)).clip(studycountries); //Rename bands to original indices names
+  
+// From the entire training dataset, subset training points corresponding to the respective base image year
+  var pts = val_pts.filter(ee.Filter.eq('Year', baseyr));
+
+//--- Overlay training points on corresponding composite image to create FeatureCollection training data for that year
+// Note that the reference CC readings are stored in the 'CnpyCvr' (or CanopyCover) property.
+
+  var validation = base_img.sampleRegions({
+                collection: pts,
+                properties: ['Impr_Pc'], //field containing canopy cover readings 
+                scale: 30,
+                geometries: false, // omit geometries to save memory and avoid GEE timing out
+                tileScale : 1  //parameter to reduce the chances of running into memory problems 
+  });
+  return validation;
+}
+
+var validation_df = ee.FeatureCollection(sumyear.map(overlay_pts2)).flatten();
+//print("Validation Export Table", validation_df);
+
+Export.table.toDrive({
+  collection: validation_df, 
+  folder: myGoogleDrive_Folder,
+  description: "Validation_ImperCov_LT",
+  //fileFormat: 'GEO_JSON'
+});
+
+
+//=====================================================================================================================//
+//                         STEP NINE: EXPORTING DATA TO GEE ASSET (OR TO GOOGLE DRIVE)
+//=====================================================================================================================//
+print("Step 7: Export Impervious Cover Images");
+
+// Exporting data to GEE Asset
+var exportImg = true;
+print(exportImg, "exportImg");
+
+//Exporting data to google drive
+var exportImgtoDrive = false;
+print(exportImgtoDrive, "exportImgtoDrive");
+
+if(exportImg){
+      // 
+      Export.image.toAsset({
+        image: out_image,                       // image to export
+        description: outfile_name,              // file name of exported image
+        scale: 30,                              // pixel size
+        assetId: imperviouslt_Asset + outfile_name,       // export image to this path in GEE asset
+        region: studycountries,                      // aoi of image area to export
+        maxPixels: 1e13                         // allows computation to succeed by avoiding 'Error: Too many pixels in the region'
+      });
+} 
+
+// --If you are exporting data to Google drive--
+if(exportImgtoDrive){
+      // 
+      Export.image.toDrive({
+        image: out_image,//.unmask(-9999),          // Use unmask function to maintain NA values when exporting to Google Drive
+        description: outfile_name,                  // file name of exported image
+        scale: 30,                                  // pixel size
+        folder: myGoogleDrive_Folder,               // Destination folder in your Google Drive
+        region: studycountries,                       // aoi of image area to export
+        maxPixels: 1e13                             // allows computation to succeed by avoiding 'Error: Too many pixels in the region'
+
+      });
+} else {}
+
+print("DONE");

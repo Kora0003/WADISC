@@ -1,0 +1,1141 @@
+//========================== DEVELOPED AREA CLASSIFICATION SCRIPT USAGE ================================================//
+// This annual cover data summaries are for Ghana, Benin and Togo (together), and Nigeria
+// Follow the following steps to see the accuracy statistics and downloadable summaries for a particular country
+//======================================================================================================================//
+//  1. Select the year you want to download in line 21
+//  2. Specify the Google Drive directory binary to export binaryy classification in line 34
+//  3. Input the name of the country using Ghana, BT or Nigeria in script line 54 
+//  4. Select the corresponding cities using Ghana_cities, BT_cities, or Nigeria_cities in line 72
+//  5. Select the ecological zones for the corresponding country by using Ghana_ecoregions, BT_ecoregions or Nigeria_ecoregions in script line 82
+// 6. Comment on and off between script lines 91 - 94 to select the predicted Random forest impervious cover for the specified country
+// 7. Comment on and off between script lines 99 - 102 to select the fitted LandTrendr impervious cover for the specified country
+// 8. To see the accuracy statistics select the validation points for the specified country using Ghana_val_pts, BT-val_pts, or Nigeria_val_pts
+// in script line 112
+// 9. Export the binary classification images. The default output export location is GD (line 1125)
+
+// =====================================================================================================================//
+//                    STEP ONE: DETERMINE THE YEAR, OUTPUT DATA NAME AND EXPORT FOLDER PATH
+// =====================================================================================================================//
+// Specify the beginning year to ran the Random Forest model, and year to download
+// User input of the year to be summarized and exported, from 2001 to the present year
+var yearC = 2001; 
+
+// Initial year and final year in the time series - this should remain set to 2001
+var year_init = 2001;
+var year_final = 2020;
+
+// Define starting and ending years of the times series
+var startyear = year_init;
+var endyear = year_final;
+
+// If desired, destination folder in your Google Drive (GD) where binary classification out images will be exported
+// If exporting image to GD, create a folder in your GD then paste folder name in space provided below
+//Ghana_Binary_NoLoss, BT_Binary_NoLoss, Nigeria_NLF_GFS_Binary_NoLoss, Nigeria_WSS_Binary_NoLoss 
+var myGoogleDrive_Folder = 'kora0003/Nigeria_WSS_Binary_NoLoss'; //User input as desired
+
+// Name of the Binary Classification output image to be saved
+var outfile_name ='binary_noloss' + yearC; 
+
+//======================================================================================================================//
+//              STEP TWO: READ IN COUNTRY, CITY, AND ECOLOGICAL BOUNDARIES FOR THE STUDY AREA
+//======================================================================================================================// 
+// Subset the West Africa country of interest from the Large Scale International Boundary dataset.
+// Here is the list of the countries in the region and associated FIPS codes
+// Ghana(GH), Togo(TO), Benin(BN), Nigeria(NI), Cote d'Ivoire(IV), Burkina Faso(UV), Niger(NG), Mali(ML), Mauritania(MR),
+// Gambia, The(GA), Senegal(SG), Guinea-Bissau(PU), Guinea(GV), Liberia(LI), Sierra Leone(SL), Cape Verde(CV)
+var countries = ee.FeatureCollection("USDOS/LSIB_SIMPLE/2017");
+var Ghana = countries.filter(ee.Filter.eq('country_co', 'GH'));
+var Togo = countries.filter(ee.Filter.eq('country_co', 'TO'));
+var Benin = countries.filter(ee.Filter.eq('country_co', 'BN'));
+var TB = Togo.merge(Benin);
+var Nigeria = countries.filter(ee.Filter.eq('country_co', 'NI'));
+
+// Select study country using Ghana, BT, and Nigeria
+var studycountries = Nigeria;
+
+// Center and Zoom
+Map.centerObject(studycountries, 7); 
+
+// Import city boundaries polygons
+var Ghana_cities = ee.FeatureCollection("projects/ee-koraha/assets/Africapolis2020")
+.filter(ee.Filter.eq('ISO3', 'GHA'));
+var Togo_cities = ee.FeatureCollection("projects/ee-koraha/assets/Africapolis2020")
+.filter(ee.Filter.eq('ISO3', 'TGO'));
+var Benin_cities = ee.FeatureCollection("projects/ee-koraha/assets/Africapolis2020")
+.filter(ee.Filter.eq('ISO3', 'BEN'));
+var TB_cities = Togo_cities.merge(Benin_cities);
+var Nigeria_cities = ee.FeatureCollection("projects/ee-koraha/assets/Africapolis2020")
+.filter(ee.Filter.eq('ISO3', 'NGA'));
+
+// Select cities within each country using Ghana_cities, BT_cities, and Nigeria_cities
+var cities = Nigeria_cities;
+
+/// Ecological boundaries in Ghana: 1) West Sudanian savanna, 2. Guinean forest-savanna, 3. Eastern Guinean forests
+var Ecoregions = ee.FeatureCollection("projects/ee-koraha/assets/studycountries_ecozones");
+var Ghana_ecoregions = Ecoregions.filter(ee.Filter.eq('Country', 'Ghana'));
+var Togo_ecoregions = Ecoregions.filter(ee.Filter.eq('Country', 'Togo'));
+var Benin_ecoregions = Ecoregions.filter(ee.Filter.eq('Country', 'Benin'));
+var TB_ecoregions = Togo_ecoregions.merge(Benin_ecoregions);
+var Nigeria_ecoregions = Ecoregions.filter(ee.Filter.eq('Country', 'Nigeria'));
+
+// Select ecological zones within each country country using Ghana_ecoregions, TB_ecoregions, and Nigeria_ecoregions
+var ecozone = Nigeria_ecoregions;
+print('ecoregions', Ecoregions);
+
+
+//======================================================================================================================//
+//                STEP THREE: READ IN IMAGE COLLECTION OF PREDICTED IMPERVIOUS COVER FROM RANDOM FOREST, AND 
+//                            LANDTRENDR-FITTED IMPERVIOUS COVER, VALIDATION POINTS FOR ACCURACY ASSESSMENT
+//======================================================================================================================//
+// Predicted impervious cover from Random Forests
+//var ann_ic1yr = ee.ImageCollection("projects/ee-koraha/assets/Ghana_ImperCov_RF_1y").filterDate('2001', '2021');
+//var ann_ic1yr = ee.ImageCollection("projects/ee-koraha/assets/Benin_Togo_ImperCov_RF_1y").filterDate('2001', '2021');
+//var ann_ic1yr = ee.ImageCollection("projects/ee-koraha/assets/Nigeria_NLF_GFS_ImperCov_RF_1y").filterDate('2001', '2021');
+var ann_ic1yr = ee.ImageCollection("projects/ee-koraha/assets/Nigeria_WSS_ImperCov_RF_1y").filterDate('2001', '2021');
+
+print('ann_cc1yr', ann_ic1yr);
+
+// Fitted LandTrendr impervious cover
+//var ic_lt = ee.ImageCollection("projects/ee-koraha/assets/Ghana_ImperCov_LT_1y").filterDate('2001', '2021');
+//var ic_lt = ee.ImageCollection("projects/ee-koraha/assets/BT_ImperCov_LT_1y").filterDate('2001', '2021');
+//var ic_lt = ee.ImageCollection("users/owitt83/Nigeria_Model1_ImperCov_LT_1y").filterDate('2001', '2021');
+var ic_lt = ee.ImageCollection("users/owitt83/Nigeria_Model2_ImperCov_LT_1y").filterDate('2001', '2021');
+
+print('ic_lt', ic_lt);
+
+//Validation Points for Accuracy Assessment
+var Ghana_val_pts = ee.FeatureCollection("projects/ee-koraha/assets/Ghana_Validation_Points");
+var TB_val_pts = ee.FeatureCollection("projects/ee-koraha/assets/BT_Validation_Points");
+var Nigeria_val_pts = ee.FeatureCollection("projects/ee-koraha/assets/NGA_Validation_Points");
+
+// Use Ghana_val_pts, BT_val_pts, or Nigeria_val_pts
+var val_points = Nigeria_val_pts.filter(ee.Filter.gte('Year', 2001)).filter(ee.Filter.lte('Year', 2020));
+//print(val_points, 'points')
+
+
+//=====================================================================================================================//
+//  STEP FOUR: SET THRESHOLD(S) TO CLASSIFY THE LANDTRENDR-FITTED IMPERVIOUS COVER
+//=====================================================================================================================//
+// Thresholds for classifying impervious cover
+var threshold_ic = 20;
+
+// Function to reclassify impervious cover
+// Applies the classification thresholds plus a 3 x 3 majority filter
+// Clips the output to the urban boundaries -- postponed clip to get full range of cc_fits prev/next year.
+// Comment: The "pc" and "ic" mean pervious and impervious covers, respectively. 
+// Comment: The expression (pc+(ic*2) below works, but I can't quiet figure out why we need that in the expression 
+var reclass_ic = function imgFilter(img){
+  var img2 = img.expression(
+    'pc+(ic*2)', {               
+    'pc': img.lte(threshold_ic),
+    'ic': img.gt(threshold_ic)
+  })
+  .reduceNeighborhood({
+    reducer: ee.Reducer.mode(),
+    kernel: ee.Kernel.square(1),
+  })
+  .rename('ic_fit');
+  var pc = img.lt(threshold_ic).rename('pc'); // Select pervious covers
+  var ic = img.gte(threshold_ic).rename('ic'); // Select Impervious covers
+  var curyear = img.get('year');
+   return img2.addBands(ic).addBands(pc)
+              .set('year', curyear)
+              .set('date', ee.Date.fromYMD(curyear, 1, 1))
+              .set('system:time_start', ee.Date.fromYMD(curyear, 1, 1).millis());
+};
+
+// Apply the reclassification function to the LandTrendR image collection
+var ic_ltrcls = ic_lt.map(reclass_ic);
+//print('Reclassified image collection', ic_ltrcls);
+
+//=====================================================================================================================//
+//              STEP FIVE: APPLY A NO DEVELOPED AREA LOSS RULE, WHICH IS IF A PIXEL IS DEVELOPED IN PREVIOUS YEAR(S), 
+//            I             IT CAN ONLY INCREASE OR REMAIN THE SAME
+//=====================================================================================================================//
+//Date of first image in collection
+var firstDate = ic_ltrcls.first().get('system:time_start');
+
+//Function to get max of previous images
+var addPreviousMax = function(image){
+  //Grab date from image
+  var endDate = ee.Date(image.get('system:time_start'));
+  //Get images for timeframe and sum
+  var icRunMax = ic_ltrcls
+    //Filter time frame from date of first in list to this image date
+    .filterDate(firstDate, endDate)
+    //Select ic_fit band
+    .select('ic')
+    //Reduce to max of ic_fit of these previous images
+    .reduce(ee.Reducer.max());
+    
+  //Rename for output
+  icRunMax = ee.Image(icRunMax).rename('ic_run_max');
+  return image.addBands(icRunMax);
+};
+
+//Handle first image separately (no previous images)
+var firstIcImage = ic_ltrcls.first()
+      //duplicating ic_fit and renaming to match bands at the end
+      .addBands(ic_ltrcls.first().select('ic').rename('ic_no_loss'))
+      .addBands(ic_ltrcls.first().select('ic').rename('ic_run_max'));
+//print('firstIcImage', firstIcImage);
+var restIcImages = ic_ltrcls
+      .filter(ee.Filter.neq('system:time_start', firstIcImage.get('system:time_start'))); //maybe index instead?
+//print('restIcImages', restIcImages);
+
+//Get running max
+var icWithMax = restIcImages
+    //map the function to get the max of the respective previous images
+    .map(addPreviousMax);
+
+//Function to indicate if current ic_fit value less than the running max of ic_fit
+//  and create a ic_no_loss band by taking either ic_fit or ic_run_max
+var addNoLoss = function(image){
+  var icRunMax = image.select('ic_run_max');
+  //Is the current ic_fit less than the previous image's maximum? 
+  // Will equal 1 when current ic_fit is less (i.e. there has been a decrease)
+  var icIsLess = image.select('ic').lt(icRunMax);
+  //Use this in ee.Image.where() to create our desired ic_no_loss band that
+  //  has ic_fit if no loss, and ic_run_max if a loss was observed (a value we do not wish to keep)
+  var icNoLoss = image.select('ic').where(icIsLess, icRunMax);
+  
+  //Rename for output
+  icNoLoss = ee.Image(icNoLoss.rename('ic_no_loss'));
+  return image.addBands(icNoLoss);
+};
+
+//Calculate loss indicator and get no-loss values
+var icColNoLoss = icWithMax.map(addNoLoss);
+
+//Add first image back in, and select only bands of interest
+var ltFitCollection1 = ee.ImageCollection(firstIcImage).merge(icColNoLoss);
+//print(ltFitCollection1, "ltFitCollection1")
+
+var ltFitCollection1yr1 =  ltFitCollection1.filterDate('2001-01-01', '2020-12-31')
+.select(['ic_fit', 'pc', 'ic_no_loss', 'ic_run_max'], ['ic_fit', 'pc', 'noloss', 'ic']);
+print('icCoNoLoss merged', ltFitCollection1yr1);
+
+// LandTrendr image to list
+var ic_ltrcls_list = ltFitCollection1yr1.toList(ic_ltrcls.size());
+//print(ic_ltrcls_list, 'ic_ltrcls_list')
+
+
+//=====================================================================================================================//
+//                       STEP SIX: TEST THE ACCURACY OF THE DEVELOPED AREA CLASSIFICATION
+// ====================================================================================================================//
+// Set initial and final year 
+var year_init = 2001;
+var year_final = 2020;
+
+var sumyear = [2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010,
+2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020];
+
+// subset validation points corresponding to the respective base image year
+function overlay_pts2(inyear) {
+  var baseyr = inyear; // Year of base image to import for RF training 
+  var base_img = ee.Image(ic_ltrcls_list.get(baseyr - year_init)).clip(studycountries);
+  
+// Use Ghana_val_pts, TB_val_pts, or Nigeria_val_pts
+var val_pts = val_points;
+//print(val_pts, "Validation Points");
+
+var pts = val_pts.filter(ee.Filter.eq('Year', baseyr));
+
+//Overlay validation points on corresponding composite image to create FeatureCollection validation data for that year
+var validation = base_img.sampleRegions({
+                collection: pts,
+                properties: ['Impr_Pc'], //field containing impervious cover readings 
+                scale: 30,
+                geometries: false, // omit geometries to save memory and avoid GEE timing out
+                tileScale : 1  //parameter to reduce the chances of running into memory problems 
+  });
+  return validation;
+}
+
+var validation_df = ee.FeatureCollection(sumyear.map(overlay_pts2)).flatten();
+print("Validation Export Table", validation_df);
+
+// Reclassify the validation datasets
+var lookupIn = [0,4,8,12,16,20,24,28,32,36,40,44,48,52,56,60,64,68,72,76,80,84,88,92,96,100];
+var lookupOut = [0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
+var validation = validation_df.remap(lookupIn, lookupOut, 'Impr_Pc');
+print("Validation", validation);
+
+// Generate the Error Matrix
+var errorMat = validation.errorMatrix('Impr_Pc','ic');
+print(errorMat, "errorMat");
+
+// Calculate overall accuracy.
+print("Overall accuracy", errorMat.accuracy());
+print("Overall Error", errorMat.accuracy().subtract(1).abs());
+
+// Calculate consumer's accuracy, also known as user's accuracy or
+// specificity and the complement of commission error (1 − commission error).
+print("User's accuracy", errorMat.consumersAccuracy());
+print("Commission Error", errorMat.consumersAccuracy().subtract(1).abs());
+
+// Calculate producer's accuracy, also known as sensitivity and the
+// compliment of omission error (1 − omission error).
+print("Producer's accuracy", errorMat.producersAccuracy());
+print("Omission Error", errorMat.producersAccuracy().subtract(1).abs());
+
+// Fscore is the average of the producer and user accuracies
+print("Fscore value", errorMat.fscore());
+
+// Calculate kappa statistic.
+print('Kappa statistic', errorMat.kappa());
+
+//====================================================================================================================
+//                          STEP SEVEN: PREPARE THE CLASSIFICATION FOR CHANGE CALCULATION
+//====================================================================================================================
+// Convert the classified, and no loss LandTrendR image collection to a list
+var ic_ltrcls_list = ltFitCollection1yr1.toList(ic_ltrcls.size());
+print(ic_ltrcls_list, 'ic_ltrcls_list');
+
+// Extract the first year image from the beginning of the list
+var firstimg = ee.Image(ic_ltrcls_list.get(0));
+var firstyear = ee.Number(firstimg.get('year'));
+var firstdate = firstimg.get('date');
+//print("First year", firstyear);
+
+// Make an image for the year before the first year by copying the first year image
+var newfyear = firstyear.subtract(1);
+//print(newfyear);
+var newfirst = firstimg.set('year', newfyear)
+                       .set('date', ee.Date.fromYMD(newfyear, 1, 1))
+                       .set('system:time_start', ee.Date.fromYMD(newfyear, 1, 1).millis());
+//print('newfirst', newfirst);
+
+// Make an image for two years before the first year by copying the first year image
+var newfyear2 = firstyear.subtract(2);
+//print(newfyear);
+var newfirst2 = firstimg.set('year', newfyear2)
+                       .set('date', ee.Date.fromYMD(newfyear2, 1, 1))
+                       .set('system:time_start', ee.Date.fromYMD(newfyear2, 1, 1).millis());
+
+// Extract the last year image from the end of the list
+var lastindex = ic_ltrcls_list.size().subtract(1);
+var lastimg = ee.Image(ic_ltrcls_list.get(lastindex));
+var lastyear = ee.Number(lastimg.get('year'));
+var lastdate = lastimg.get('date');
+//print('Last year', lastyear);
+
+// Make an image for the year after the last year by copying the last year image
+var newlyear = lastyear.add(1);
+//print(newlyear);
+var newlast = lastimg.set('year', newlyear)
+                     .set('date', ee.Date.fromYMD(newlyear, 1, 1))
+                     .set('system:time_start', ee.Date.fromYMD(newlyear, 1, 1).millis());
+//print('newlast', newlast);
+
+// Add the new images to the beginning and end of the time series
+var newcollection = ee.ImageCollection(newfirst).merge(ltFitCollection1yr1);
+var newcollection2 = ee.ImageCollection(newfirst2).merge(newcollection);
+var newcollection3 = newcollection2.merge(ee.ImageCollection(newlast));
+print(newcollection3, 'newCollection');
+
+var timeField = 'system:time_start';
+
+// Function to compute temporally lagged images
+// Returns an imageCollection with lagged images stored as properties
+var lag = function(leftCollection, rightCollection, lagDays) {
+  var filter = ee.Filter.or(
+    ee.Filter.and(ee.Filter.maxDifference({
+      difference: 1000 * 60 * 60 * 24 * 731,
+      leftField: timeField, 
+      rightField: timeField
+    }), 
+    ee.Filter.greaterThan({
+      leftField: timeField, 
+      rightField: timeField
+    })), ee.Filter.and(ee.Filter.maxDifference({
+      difference: 1000 * 60 * 60 * 24 * 366,
+      leftField: timeField, 
+      rightField: timeField
+    }), 
+    ee.Filter.lessThan({
+      leftField: timeField, 
+      rightField: timeField
+    }))
+  
+  );
+
+  return ee.Join.saveAll({
+    matchesKey: 'images',
+    measureKey: 'delta_t',
+    ordering: timeField,
+    ascending: false, // Sort reverse chronologically
+  }).apply({
+    primary: leftCollection, 
+    secondary: rightCollection, 
+    condition: filter
+  });
+};
+
+// Apply the function to generate lagged images
+var lagged_cc = lag(newcollection3, newcollection3, 365 * 1 + 1);
+
+// Function to merge lagged images
+// Returns a image with lagged index values stored in separate bands
+var lagmerge = function(image) {
+  // Function to be passed to iterate.
+  var merger = function(current, previous) {
+    return ee.Image(previous).addBands(current);
+  };
+  return ee.ImageCollection.fromImages(
+image.get('images')).iterate(merger, image);
+};
+
+// Generate the merged lagged image
+var merged_cc = ee.ImageCollection(lagged_cc.map(lagmerge));
+// Clip off the "extra" years that we added to the beginning and end of the time series
+var filt_ic = merged_cc.filterDate(firstdate, ee.Date(lastdate).advance(1, 'day'));
+//Full images of impervious cover fits: current, previous and next years
+print('filt_ic', filt_ic); 
+
+// Convert the LandTrendr-processed image collection to a list
+var ltFitCollection1yr2 =  filt_ic.filterDate('2001-01-01', '2020-12-31').select('noloss');
+
+var outimage_list = ltFitCollection1yr2.toList(ltFitCollection1yr2.size());
+
+//--- Subset image for a study year to export ---
+  // Make a list of years based on our study period. NB: Study year cannot be outside range of study period
+//var year_list = ee.List.sequence(startyear, endyear, 1);
+
+// Function to generate index for the study year  
+var year_index = function(curyear) {
+  if (curyear < startyear || curyear > endyear ) {
+  print("Invalid Study Year! Study year range "+ startyear + ' to '+ endyear);
+  }
+  // Convert year list to year index
+  var curyear_index = ee.Number(curyear).subtract(startyear);
+  return curyear_index;
+};
+
+// Use function above to get index of study year
+var index_studyYear = year_index(yearC);
+
+// Extract the image from the image list
+var out_image = ee.Image(outimage_list.get(index_studyYear)).set('year', yearC)
+                                                            .set('date', yearC +'-01-01')
+                                                            .set('system:time_start', ee.Date.fromYMD(yearC, 1,1).millis());           
+
+//====================================================================================================================
+//                          STEP EIGHT: DEVELOPED AREA CHANGE CALCULATION AND PREPARATION FOR EXPORT
+//====================================================================================================================
+// Function to compute a "change type" code based on the current class, the class in the previous year,
+// and the class in the subsequent year
+var change_code = function(img) {
+  var prevyear = img.select('ic_2');
+  var curyear = img.select('ic');
+  var loss = prevyear.eq(prevyear)
+  .and(curyear.neq(curyear)).rename('loss');
+  var gain =  prevyear.neq(prevyear)
+  .and(curyear.eq(curyear)).rename('gain');
+   var forchange = img.expression(
+    '1 + loss + gain * 2', {
+    'loss': loss,
+    'gain': gain,
+   // 'noloss':loss+gain,
+  }).rename('forchange');
+  return img.addBands(forchange);
+};
+
+// Apply the function to make the change type calculation
+// and now clip to urban boundaries
+var filt_change = filt_ic//.map(change_code)
+                         .map(function(img){
+                            return img.clip(cities);
+});
+print(filt_change, 'filtchange');
+
+// Determine pixels where impervious expansion has occured based on the change type code
+// Comment: Set this function  to extract only impervious pixels
+var calc_impervious = function(img) {
+  var curyear = img.get('year');
+  var impervious = img.select('ic')
+                    .rename('impervious')
+                    .set('year', curyear);
+  return impervious;
+}; 
+
+// Apply the function to calculate impervious
+var impervious = filt_change.map(calc_impervious);
+//print("impervious", impervious);
+
+// Determine pervious pixels for each year
+// Comment: Set this function  to extract only pervious pixels
+var calc_pervious = function(img) {
+  var curyear = img.get('year');
+  var pervious = img.select('pc') 
+               .rename('pervious')
+               .set('year', curyear);
+  return pervious;
+}; 
+
+// Apply the function to calculate pervious pixels
+var pervious = filt_change.map(calc_pervious);
+print("pervious", pervious);
+
+// Determine pixels where annual change (pervious to impervious) has occured
+// Comment: Here, I'm trying to extract areas where impervious expansion has occured each year
+var calc_annualchange = function(img) {
+  var prevyear = img.select('ic_2');
+  var curyear = img.select('ic');
+  var curyr = img.get('year');
+  var annualchange = curyear.subtract(prevyear)
+               .rename('annualchange')
+               .set('year', curyr);
+  return annualchange;
+}; 
+
+// Apply the function to calculate annual change
+var annualchange = filt_change.map(calc_annualchange);
+print("annualchange", annualchange);
+
+// Combine the separate image collections for the change types 
+// into a single image collection consisting of multiband images
+var change_type = impervious.combine(pervious);
+var change_type = change_type.combine(annualchange);
+
+
+print('change_type', change_type);
+
+//Drop first year as change values are all 0 (can't calculate)
+change_type = change_type.filterMetadata('year', 'greater_than', firstyear.subtract(1)); 
+//print('change_type filt', change_type);
+
+//Add a band of all 1s inside the urban boundaries, to be used to calculate total urban areas
+// single image
+var identityBoundaries = ee.Image.constant(1).clip(cities).rename('city_boundary');
+//print('img res', identityBoundaries);
+//add area band
+var change_full = change_type.map(function(img){
+    return img.addBands(identityBoundaries);
+});
+//print('change full', change_full);
+
+var calc_area = function(img) {
+  var curyear = img.get('year');
+  var city_boundary = img.select('city_boundary')
+                     .multiply(ee.Image.pixelArea())
+                     .divide(1000000)
+                     .rename('city_boundary');
+    var impervious_area = img.select('impervious')
+                       .multiply(ee.Image.pixelArea())
+                       .divide(1000000)
+                       .rename('impervious_area');
+  var pervious_area = img.select('pervious')
+                       .multiply(ee.Image.pixelArea())
+                       .divide(1000000)
+                       .rename('pervious_area');
+  var annualchange_area = img.select('annualchange')
+                       .multiply(ee.Image.pixelArea())
+                       .divide(1000000)
+                       .rename('annualchange_area');
+// var ueii_area = img.select('ueii').multiply(100).rename('ueii_area');
+  var outimage = ee.Image([city_boundary, impervious_area, pervious_area, annualchange_area]);
+  return outimage.set('year', curyear);
+};
+
+var change_area = change_full.map(calc_area);
+//print(change_area, "change_area");
+
+function sumZonal(image) { 
+  // To get the doy and year, we convert the metadata to grids and then summarize
+  var curyear = image.get('year');
+  var output = image.reduceRegions({
+                       collection: ecozone,
+                       reducer: ee.Reducer.sum(),
+                       scale: 30});
+  // output.set('year', curyear);
+  return output.map(function(feature){
+    //var dict = ee.Dictionary(feature.get('histogram'));
+    feature = feature//.set(dict)
+                     .set('year', curyear)
+                     .setGeometry(null);
+  return (feature)});
+} 
+
+// Map the zonal statistics function over the filtered spectral index data
+var zonalChange = change_area.map(sumZonal);  
+//print('zonalChange', zonalChange);
+// Flatten the results for export
+var zonalChangeFlat = zonalChange.flatten();
+//print('zonalChangeFlat', zonalChangeFlat);
+
+function sumZonalReserves(image) { 
+  // To get the doy and year, we convert the metadata to grids and then summarize
+  // Reduce by regions to get zonal means for each county
+  var curyear = image.get('year');
+  var output = image.reduceRegions({
+                       collection: cities,
+                       reducer: ee.Reducer.sum(),
+                       scale: 30});
+  // output.set('year', curyear);
+  return output.map(function(feature){
+    //var dict = ee.Dictionary(feature.get('histogram'));
+    feature = feature//.set(dict)
+                     .set('year', curyear)
+                     .setGeometry(null);
+  return (feature)});
+} 
+
+// Map the zonal statistics function over the filtered spectral index data
+var zonalReserves = change_area.map(sumZonalReserves);  
+//print('zonalReserves', zonalReserves);
+// Flatten the results for export
+var zonalReservesFlat = zonalReserves.flatten();
+//print('zonalReservesFlat', zonalReservesFlat.limit(500));
+
+Export.table.toDrive({
+  collection: zonalChangeFlat,
+  description: 'summary_by_ecozone',
+   folder: myGoogleDrive_Folder,
+  selectors: ['year', 'ECO_NAME', 'Country', 'impervious_area', 
+              'pervious_area', 'annualchange_area']
+});
+
+Export.table.toDrive({
+  collection: zonalReservesFlat,
+  description: 'summary_by_city_boundary',
+  folder: myGoogleDrive_Folder,
+  selectors: ['year', 'agglosName', 'Pop2015', 'IS03', 'city_boundary', 'impervious_area', 
+              'pervious_area', 'annualchange_area']
+});
+
+// Separate function for final exporting in app, new UI panel, etc.
+function createSummariesPanel(){
+
+  // Create download URLs to display
+  //getdownloadurl
+  var ecozoneURL = zonalChangeFlat.getDownloadURL({format: 'csv',
+                    filename: 'WADISC_summary_by_ecozone',
+                    selectors: ['year', 'ECO_NAME', 'Country', 'impervious_area', 
+                    'pervious_area', 'annualchange_area']
+  });
+  var urbanboundariesURL = zonalReservesFlat.getDownloadURL({format: 'csv',
+                      filename: 'WADISC_summary_by_city_boundaries',
+                      selectors: ['year', 'agglosName', 'ISO3', 'Pop2015', 'city_boundary', 'impervious_area', 
+                      'pervious_area', 'annualchange_area', 'Longitude', 'Latitude', 'Metropole']
+  });
+  
+  var urlLabelEcozones = ui.Label('Click to download WAUS all years summary by ecozone');
+  var urlLabelUrbanboundaries = ui.Label('Click to download WAUS all years summary by urban boundary');
+
+  urlLabelEcozones.setUrl(ecozoneURL);
+  urlLabelUrbanboundaries.setUrl(urbanboundariesURL);
+  
+  var thisPanel = ui.Panel([urlLabelEcozones, urlLabelUrbanboundaries], '', {padding: '0px 0px 0px 10px'});
+
+  return(thisPanel);
+
+}
+
+
+// Yearly Image Export 
+function exportYearImagesToDrive(){
+  
+  // get year from canopy cover, will be same for the others
+  // used to add into download file name
+  var yearString = dispCurYear.get('year').getInfo();
+  
+  //filenames for web or drive downloads
+  var imperviousCoverFileName = yearString+'_percent_impervious_cover';
+  
+  //Also export images. Settings copied over from original script. 
+  Export.image.toDrive({
+    image: dispCurYear,//.unmask(-9999),   // Use unmask function to maintain NA values when exporting to Google Drive, otherwise NAs may become zeros
+    description: imperviousCoverFileName,      // file name of exported image
+    scale: 30,                                  // pixel size
+    region: ecozone,                          // aoi of image area to export
+    maxPixels: 1e13                             // allows computation to succeed by avoiding 'Error: Too many pixels in the region'
+  });
+}
+
+
+// =====================================================================================================================//
+//                           STEP EIGHT: GRAPHICAL USER INTERFACE
+// =====================================================================================================================//
+// Configs and globals
+//
+
+var map = ui.Map();
+
+//multiple interactions, global variables
+var sidePanel = ui.Panel();
+// Create panels to hold lon/lat values and reserve name.
+var lon = ui.Label();
+var lat = ui.Label();
+var reserveName = ui.Label();
+var ecozoneName = ui.Label();
+// for links
+var downloadImagesButton = ui.Button();
+var downloadImagesPanel = ui.Panel();
+
+//configs
+var config = {
+  //start and end date from data, found at beginning of script
+  // start year is first year + 2, because that's when change results start
+  studyYearsStart: ee.Date(firstdate).get('year').add(0).getInfo(),
+  studyYearsEnd: ee.Date(lastdate).get('year').getInfo(),
+  downloadButtonText: 'Click to Download Images for Year Displayed',
+  //colors for impervious, make sure matches paletteImpervious
+  colorPervious: '#edf8e9',
+  //colorOpen: '#a1d99b',
+  colorImpervious: '#31a354',
+  //colors for where annual impervious expansion has occured
+  colorAnnualchange: 'orange',
+}; 
+
+//palette for displaying the classified raster data
+var paletteImpervious = 
+  '<RasterSymbolizer>' +
+    '<ColorMap  type="intervals" extended="false" >' +
+      '<ColorMapEntry color="#edf8e9" quantity="1" label="Pervious" />' +
+      '<ColorMapEntry color="#31a354" quantity="2" label="Impervious" />' +
+    '</ColorMap>' +
+  '</RasterSymbolizer>';
+
+
+//multiple functions interact, so must be global
+var dispPrevYear = ee.Image([]);
+var dispCurYear = ee.Image([]);
+var dispNextYear = ee.Image([]);
+var dispImper = ee.Image([]);
+var dispPer = ee.Image([]);
+var dispAnnualc = ee.Image([]);
+
+
+//
+// Display functions
+//
+
+function drawReserves(){
+  
+  //Display the outline of reserves as a black line, no fill
+  // Create an empty image into which to paint the features, cast to byte.
+  var empty = ee.Image().byte();
+  // Paint all the polygon edges with the same number and width, display.
+  var outline = empty.paint({
+    featureCollection: cities,
+    color: 1,
+    width: 1
+  });
+  map.addLayer(outline, {palette: '000000'}, 'Urban Boundaries');
+}
+
+//Explicit clear in between years
+function resetResults(){
+  dispPrevYear = ee.Image([]);
+  dispCurYear = ee.Image([]);
+  dispNextYear = ee.Image([]);
+  dispImper = ee.Image([]);
+  dispPer = ee.Image([]);
+  dispAnnualc = ee.Image([]);
+}
+
+
+function displayYear(requestedYear){
+  
+  //reset map
+  map.clear(); //note, removes listeners too
+  
+  //reset image results to prevent any accidental carry-over 
+  resetResults();
+  
+  //map.clear removes listeners, so add here
+  // re-register a callback to be invoked when the map is clicked.
+  map.onClick(handleClick);
+  
+  //get full impervious cover maps for year
+  var imperviousReqYear = filt_ic.filterMetadata('year', 'equals', requestedYear)
+                        //returns collection of one image, so get first element
+                        .first();
+  //print('impervious cover year', imperviousReqYear);
+  
+  //get all change images of year to display (previously clipped to reserves)
+  var changeReqYear = filt_change.filterMetadata('year', 'equals', requestedYear)
+                        //returns collection of one image, so get first element
+                        .first();
+  //print("change req year", changeReqYear);
+
+  //get images to display
+  dispPrevYear = imperviousReqYear.select('ic_fit_2');
+  dispCurYear = imperviousReqYear.select('ic_fit');
+  dispNextYear = imperviousReqYear.select('ic_fit_1');
+  
+  var dispImper = impervious.filter(ee.Filter.eq('year', requestedYear))
+                        //returns list of one image, so get first element
+                        .first();
+  var dispImper = dispImper.updateMask(dispImper.eq(1));
+  //print('disp degrad', dispDegrad);
+
+  var dispPer = pervious.filter(ee.Filter.eq('year', requestedYear))
+                          //returns list of one image, so get first element
+                          .first();
+  var dispPer = dispPer.updateMask(dispPer.eq(1));
+                        
+  var dispAnnualc = annualchange.filter(ee.Filter.eq('year', requestedYear))
+                          //returns list of one image, so get first element
+                          .first();
+  var dispAnnualc = dispAnnualc.updateMask(dispAnnualc.eq(1));
+
+
+  map.addLayer(dispPrevYear.sldStyle(paletteImpervious), {}, 'Previous Year', false);
+  map.addLayer(dispCurYear.sldStyle(paletteImpervious), {}, 'Current Year');
+  map.addLayer(dispNextYear.sldStyle(paletteImpervious), {}, 'Next Year', false);
+  map.addLayer(dispImper, {palette: config.colorImpervious, bands: 'impervious'}, 'Impervious');
+  map.addLayer(dispPer, {palette: config.colorPervious, bands: 'pervious'}, 'Pervious');
+  map.addLayer(dispAnnualc, {palette: config.colorAnnualchange, bands: 'annualchange'}, 'Annual Change');
+  
+  //draw reserves on top 
+  drawReserves();
+
+  //also keep point, so can change years while looking at same point
+  // The number here must be equal to the number of map layers
+  map.layers().set(9, dot);
+
+
+  //add Legend
+  var legendData = {
+  'Pervious Cover': config.colorPervious,
+  'Impervious': config.colorImpervious,
+  'Annual Change' : config.colorAnnualchange,
+  };
+  var legend = makeLegend(legendData);
+  map.add(legend);
+
+  //if running in code editor, can now also download to drive the images
+  exportYearImagesToDrive();
+
+}
+
+// ============================================================================
+// Legend
+//
+
+//legend functions, generic
+//borrowed heavily from Sufy's demo: sufy@google.com
+function makeLegendEntry(color, label) {
+  label = ui.Label(label, {
+    margin: 'auto 0',
+    fontWeight: '100',
+    color: '#555'
+  });
+  return makeRow([makeColorBox(color), label]);
+}
+function makeColorBox(color) {
+  return ui.Label('', {
+    backgroundColor: color,  
+    padding: '5px',
+    margin: '4px',
+    border: '1px solid gray',
+  });
+}
+function makeRow(widgets){
+  return ui.Panel({
+    widgets: widgets,
+    layout: ui.Panel.Layout.flow('horizontal'),
+    style: {
+      padding: '0px 5px',
+    }
+  });
+}
+function makeLegend(data) {
+  // Start with a ui.Panel:
+  var legend = ui.Panel({
+    style: {
+      width: '200px',
+      position: 'bottom-right',
+      border: '1px solid lightgray',
+    }
+  });
+  Object.keys(data).map(function(label){
+    legend.add(makeLegendEntry(data[label], label));
+  });
+  return legend;
+} 
+
+//
+// Inspector & Chart
+//
+
+// Register a callback to be invoked when the map is clicked.
+map.onClick(handleClick);
+
+// Multiple functions now interact, so global declared
+var dot = ui.Map.Layer();
+
+
+function handleClick(coords){
+  
+  //clear previous (especially for when clicking outside of reserves)
+  reserveName.setValue('');
+  ecozoneName.setValue('');
+    //clear point on map
+    //removeLayer('Selected Point');
+
+  // Update the lon/lat panel with values from the click event.
+  lon.setValue('lon: ' + coords.lon.toFixed(2)),
+  lat.setValue('lat: ' + coords.lat.toFixed(2));
+
+  //define point based on click position
+  var clickPoint = ee.Geometry.Point(coords.lon, coords.lat);
+  // Add a dot for the point clicked on. 
+  dot = ui.Map.Layer(clickPoint, 
+                          //pink to be bright & to distinguish from other colors
+                          {color: '#ff005a'}, 
+                          'Selected Point');
+  // The number here must be equal to the number of map layers
+  map.layers().set(9, dot);
+
+  //print(coords.lon, 'lon');
+  //print(coords.lat, 'lat');
+  
+  //is point in a reserve?
+  //if point is NOT in a reserve, no feature returned, size = 0
+  var pointInside = ee.Algorithms.If(cities.filterBounds(clickPoint).size().eq(0),
+                                  false, 
+                                  true);
+  //print(pointInside, 'point in reserve?');
+
+  //if point is in a reserve, then we:
+  // Doing this client-side for interactive UI (otherwise if is the wrong choice, in general)
+  pointInside.evaluate(function (answer) {
+    if (answer) {
+      
+    //get reserve name
+    //Will ERROR if point not in reserve ...
+    var pointReserve = cities.filterBounds(clickPoint)
+                                //get first/only entry 
+                              .first()
+                              //get name
+                              .get('agglosName');
+    //print(pointReserve, 'reserve at point');
+    reserveName.setValue('cities: ' + pointReserve.getInfo());
+
+    //get ecozone name
+    var pointEcozone = ecozone.filterBounds(clickPoint)
+                              //get first/only entry 
+                              .first()
+                              //get name
+                              .get('ECO_NAME');
+    //print(pointEcozone, "ecozone at point");  
+    ecozoneName.setValue('ecozone: ' + pointEcozone.getInfo());
+
+
+   } //end if answer
+  }); //end evaluate
+  
+  // Create an chart of annual summaries of cover
+  var pointCCChart = makeCCChart(clickPoint);  
+  // Create a chart of the fitted LandTrendr values
+  var pointLTChart = makeLTChart(clickPoint);
+  
+  //add in specific placement locations to overwrite chart with each click
+  sidePanel.widgets().set(5, pointCCChart);
+  sidePanel.widgets().set(6, pointLTChart);
+
+  
+} //end handleclick
+
+function makeCCChart(pt){
+    var thisChart = ui.Chart.image.series(ann_ic1yr.select(['classification']), 
+                                        pt, 
+                                        ee.Reducer.mean(), 
+                                        30, 
+                                        'year' )
+    .setSeriesNames(['Impervious Cover'])
+    .setOptions({
+      title: 'Random Forest Impervious Cover',
+      lineWidth: 2,
+      pointSize:5,
+      colors: ['#e7298a'],
+      vAxis: {
+        title: 'Index Value',
+        minValue: 0,
+        maxValue: 100,
+      },
+      hAxis: {
+        format: '####',
+        title: 'Year',
+      },
+  });
+  //do not test print, cannot add widget to panel if already printed in console
+  return thisChart;
+}
+
+function makeLTChart(pt){
+  var thisChart = ui.Chart.image.series(ic_lt.select(['ic_fit']), 
+                                      pt, 
+                                      ee.Reducer.mean(), 
+                                      30, 
+                                      'year' )
+      .setSeriesNames(['Impervious Cover'])
+      .setOptions({
+        title: 'LandTrendr Fitted Impervious Cover',
+        lineWidth: 2,
+        pointSize: 5,
+        colors: ['#e7298a'],
+        vAxis: {
+          title: 'Index Value',
+          minValue: 0,
+          maxValue: 100,
+          fontSize: '20px',
+        },
+        hAxis: {
+          format: '####',
+           title: 'Year',
+        },
+      });
+  //do not test print, cannot add widget to panel if already printed in console
+  return thisChart;
+}
+
+
+// Create UI
+//side panel, generic
+function makeSidePanel(title, description) {
+  title = ui.Label({
+    value: title,
+    style: {
+      fontSize: '20px',
+      fontWeight: 'bold',
+      padding: '10px 0px 0px 10px',
+    }
+  });
+  description = ui.Label({
+    value: description,
+    style: {
+      //color: 'gray',
+      padding: '10px',
+    }
+  });
+  return ui.Panel({
+    widgets: [title, description],
+    style: {
+      height: '100%',
+      width: '30%',
+    },
+  });
+}
+
+
+//main
+function init() {
+  
+  // Configure the map.
+  map.style().set('cursor', 'crosshair');
+  
+  // center and zoom
+  map.centerObject(ecozone, 9); 
+  
+  //reserve outlines
+  drawReserves();
+  
+  //draws default year (last available)
+  displayYear(config.studyYearsEnd);
+      
+  //text
+  sidePanel = makeSidePanel(
+    'The West Africa Dataset of Impervious Surface Change (WADISC) uses all available Landsat data to map urban expasnion in Ghana, Togo, Benin and Nigeria. '+
+    'The approach combines machine learning classification with LandTrendr time series analysis to generate annual maps of urban impervious surface cover. '+
+    'Change detection algorithms are applied to identify developed areas.'
+  );
+  
+  //generate urls and add labels
+  //summary over all years, so display always and doesn't matter what year is selected
+  var summariesPanel = createSummariesPanel();
+  sidePanel.add(summariesPanel);
+
+  
+  var instructionsText = 
+  'Click on a point on the map for timeseries charts and other details.';
+  sidePanel.add(ui.Label({value: instructionsText,
+                          style: {fontWeight: 'bold', padding: '10px 0px 0px 10px'}}));
+  
+  //for display of data from points clicked on map
+  // Create panels to hold lon/lat values and reserve name.
+  sidePanel.add(ui.Panel([lon, lat, ecozoneName, reserveName], 
+                          ui.Panel.Layout.flow('horizontal'), 
+                          {padding: '0px 0px 0px 10px'}));
+  // Add placeholders for the charts
+  sidePanel.add(ui.Label({value: '[Fig 1 - Random Forest Impervious Cover]', style: {padding: '5px 0px 0px 10px'}}));
+  sidePanel.add(ui.Label({value: '[Fig 2 - LandTrendr Fitted Impervious Cover]', style: {padding: '5px 0px 5px 10px'}}));
+
+  //Year selector for map display  
+  var yearSliderLabel = ui.Label({value: 'Select year to display layers on map.', 
+                                  style: {fontWeight: 'bold', padding: '5px 0px 0px 10px'}});
+  sidePanel.add(yearSliderLabel);
+  var sliderComposite = ui.Slider({
+    min: config.studyYearsStart,
+    max: config.studyYearsEnd,
+    step: 1,
+    style: {fontWeight: 'bold', stretch: 'horizontal', width:'200px', padding: '0px 0px 0px 10px' },
+    value: config.studyYearsEnd, //default to latest, draws in init()
+    onChange: function(value) {
+      //draw year
+      displayYear(value);
+    },
+  });
+  sidePanel.add(sliderComposite);
+  
+  
+  var codeLink = ui.Label(
+  'Link to Code Editor for large image downloads (GEE account required)',
+  {padding: '10px'},
+  'https://code.earthengine.google.com/?scriptPath=users%2Fservir_wa%2FWAforDD%3AV2_2%2FWAForDD_4_AnnualForestDegradation_GUI');
+  sidePanel.add(codeLink);
+
+
+  var desc1 = 'WADISC was developed by the: ';
+  var desc2Link = ui.Label(
+  'EcoGRAPH Research Group at the University of Oklahoma',
+  {padding: '0px'},
+  'http://ecograph.net/');
+  var desc3Link = ui.Label(
+    'Dr. Michael C. Wimberly',
+    {padding: '0px'},
+    'mailto:mcwimberly@ou.edu?subject=WADISC GEE App');
+  var desc4Link = ui.Label(
+    'Andrews Korah',
+    {padding: '0px'},
+    'mailto:andrews.korah@ou.edu?subject=WADISC GEE App');
+  sidePanel.add(ui.Panel([ui.Label(desc1), desc2Link, desc3Link, desc4Link, ui.Label({whiteSpace: 'pre-line'})], '',
+                          {padding: '0px 0px 0px 10px'}));
+
+
+  var splitPanel = ui.SplitPanel({
+    firstPanel: sidePanel,
+    secondPanel: map,
+  });
+  ui.root.clear();
+  ui.root.add(splitPanel);
+  
+}
+
+init(); 
+
+
+//=====================================================================================================================//
+//                         STEP NINE: EXPORTING DATA TO GOOGLE DRIVE
+//=====================================================================================================================//
+print("Step 9: Export Classified Images");
+var exportImgtoDrive = true;
+print(exportImgtoDrive, "exportImgtoDrive");
+
+if(exportImgtoDrive){
+      // 
+      Export.image.toDrive({
+        image: out_image,//.unmask(-9999),          // Use unmask function to maintain NA values when exporting to Google Drive
+        description: outfile_name,                  // file name of exported image
+        scale: 30,                                  // pixel size
+        folder: myGoogleDrive_Folder,               // Destination folder in your Google Drive
+        region: studycountries,                       // aoi of image area to export
+        maxPixels: 1e13                             // allows computation to succeed by avoiding 'Error: Too many pixels in the region'
+
+      });
+} else {}
+
+print("DONE");
