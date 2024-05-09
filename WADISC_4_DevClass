@@ -262,7 +262,7 @@ var validation = validation_df.remap(lookupIn, lookupOut, 'Impr_Pc');
 print("Validation", validation);
 
 // Generate the Error Matrix
-var errorMat = validation.errorMatrix('Impr_Pc','ic');
+var errorMat = validation.errorMatrix('Impr_Pc','noloss');
 print(errorMat, "errorMat");
 
 // Calculate overall accuracy.
@@ -427,7 +427,7 @@ var out_image = ee.Image(outimage_list.get(index_studyYear)).set('year', yearC)
 // and the class in the subsequent year
 var change_code = function(img) {
   var prevyear = img.select('ic_2');
-  var curyear = img.select('ic');
+  var curyear = img.select('noloss');
   var loss = prevyear.eq(prevyear)
   .and(curyear.neq(curyear)).rename('loss');
   var gain =  prevyear.neq(prevyear)
@@ -481,7 +481,7 @@ print("pervious", pervious);
 // Comment: Here, I'm trying to extract areas where impervious expansion has occured each year
 var calc_annualchange = function(img) {
   var prevyear = img.select('ic_2');
-  var curyear = img.select('ic');
+  var curyear = img.select('noloss');
   var curyr = img.get('year');
   var annualchange = curyear.subtract(prevyear)
                .rename('annualchange')
