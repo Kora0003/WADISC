@@ -1,11 +1,14 @@
+//======================================= CITATION ======================================================================//
+// Wimberly, M., & Korah, A. (2024). West Africa Dataset of Impervious Surface Change (WADISC) from 2001 – 2020 (Version 1) [dataset]. figshare. https://doi.org/10.6084/m9.figshare.24716481
+
 // ==================== LANDTRENDR TEMPORAL SEGMENTATION SCRIPT USAGE ==================================================//
-//    1. Select the year for downlonad in line 16
-//    2. Create or select the asset to export the output in line 26
-//    3. Create or select the google drive folder to export the output in line 33
-//    4. To run LandTrendr for any of the countries input Ghana, BT or Nigeria in script line 48
-//    5. Comment on and off between script lines 67 - 70 to select the predicted  Random forest impervious cover for the country
-//    6. Select the corresponding validation data using either Ghana_val_pts, BT_val_pts, or Nigeria_val_pts in script line 87
-//    7. The default output export location is GEE Asset (line 382), or if you rather export to GD, change line 386 to true
+//    1. Select the year for downlonad in line 19
+//    2. Create or select the asset to export the output in line 29
+//    3. Create or select the google drive folder to export the output in line 36
+//    4. To run LandTrendr for any of the countries input Ghana, BT or Nigeria in script line 51
+//    5. Comment on and off between script lines 70 - 73 to select the predicted  Random forest impervious cover for the country
+//    6. Select the corresponding validation data using either Ghana_val_pts, BT_val_pts, or Nigeria_val_pts in script line 90
+//    7. The default output export location is GEE Asset (line 385), or if you rather export to GD, change line 389 to true
 
 
 // =====================================================================================================================//
