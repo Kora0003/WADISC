@@ -1,10 +1,13 @@
+//======================================= CITATION ======================================================================//
+// Wimberly, M., & Korah, A. (2024). West Africa Dataset of Impervious Surface Change (WADISC) from 2001 – 2020 (Version 1) [dataset]. figshare. https://doi.org/10.6084/m9.figshare.24716481
+
 //================================== ANNUAL SCPECTRAL COMPOSITE SCRIPT USAGE ===========================================//
-//  1. Change the year in line 13       
-//  2. If exporting out to Google Drive (GD) see lines 20-22
-//  2. If exporting to Google Earth Engine (GEE), see line 25 - 34
-//  4. Specify the country in line 60
-//  5. Specify the ecological regions for the selected country in lines 92-94
-//  6. The default output export location is GEE Asset (line 565), or if you rather export to GD, change line 568 to true
+//  1. Change the year in line 16       
+//  2. If exporting out to Google Drive (GD) see lines 23-25
+//  2. If exporting to Google Earth Engine (GEE), see line 28 - 37
+//  4. Specify the country in line 63
+//  5. Specify the ecological regions for the selected country in lines 95-97
+//  6. The default output export location is GEE Asset (line 568), or if you rather export to GD, change line 591 to true
 
 
 // =====================================================================================================================//
