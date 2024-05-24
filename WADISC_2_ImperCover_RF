@@ -1,13 +1,16 @@
+//======================================= CITATION ======================================================================//
+// Wimberly, M., & Korah, A. (2024). West Africa Dataset of Impervious Surface Change (WADISC) from 2001 – 2020 (Version 1) [dataset]. figshare. https://doi.org/10.6084/m9.figshare.24716481
+
 // ================================= RANDOM FOREST SCRIPT USAGE ========================================================//
-//    1. Select the year in line 17
-//    2. Create or select the asset to export the output in line 28
-//    3. Create or select the google drive folder to export the output in line 35
-//    4. To run Random Forest for any of the countries, input the name in script line 53
-//    6. Comment on and off between script lines 62 - 75 to select the annual composites for the select country
+//    1. Select the year in line 20
+//    2. Create or select the asset to export the output in line 31
+//    3. Create or select the google drive folder to export the output in line 38
+//    4. To run Random Forest for any of the countries, input the name in script line 56
+//    6. Comment on and off between script lines 65 - 78 to select the annual composites for the select country
 //    Note the assets annual composites are not available because they were removed to free up storage for subseqeunt analysis
-//    7. Select the corresponding training data using either Ghana_train_pts, BT_train_pts, or Nigeria_train_pts in script line 95
-//    8. Select the corresponding validation data using either Ghana_val_pts, BT_val_pts, or Nigeria_val_pts in script line 103
-//    9. The default output export location is GEE Asset (line 259), or if you rather export to GD, change in line 263 to true
+//    7. Select the corresponding training data using either Ghana_train_pts, BT_train_pts, or Nigeria_train_pts in script line 98
+//    8. Select the corresponding validation data using either Ghana_val_pts, BT_val_pts, or Nigeria_val_pts in script line 106
+//    9. The default output export location is GEE Asset (line 262), or if you rather export to GD, change in line 266 to true
 
 // =====================================================================================================================//
 //                    STEP ONE: DETERMINE THE YEAR, OUTPUT DATA NAME AND EXPORT FOLDER PATH
