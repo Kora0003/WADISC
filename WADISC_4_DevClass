@@ -1,17 +1,20 @@
+//======================================= CITATION ======================================================================//
+// Wimberly, M., & Korah, A. (2024). West Africa Dataset of Impervious Surface Change (WADISC) from 2001 – 2020 (Version 1) [dataset]. figshare. https://doi.org/10.6084/m9.figshare.24716481
+
 //========================== DEVELOPED AREA CLASSIFICATION SCRIPT USAGE ================================================//
 // This annual cover data summaries are for Ghana, Benin and Togo (together), and Nigeria
 // Follow the following steps to see the accuracy statistics and downloadable summaries for a particular country
 //======================================================================================================================//
-//  1. Select the year you want to download in line 21
-//  2. Specify the Google Drive directory binary to export binaryy classification in line 34
-//  3. Input the name of the country using Ghana, BT or Nigeria in script line 54 
-//  4. Select the corresponding cities using Ghana_cities, BT_cities, or Nigeria_cities in line 72
-//  5. Select the ecological zones for the corresponding country by using Ghana_ecoregions, BT_ecoregions or Nigeria_ecoregions in script line 82
-// 6. Comment on and off between script lines 91 - 94 to select the predicted Random forest impervious cover for the specified country
-// 7. Comment on and off between script lines 99 - 102 to select the fitted LandTrendr impervious cover for the specified country
+//  1. Select the year you want to download in line 24
+//  2. Specify the Google Drive directory binary to export binaryy classification in line 37
+//  3. Input the name of the country using Ghana, BT or Nigeria in script line 57 
+//  4. Select the corresponding cities using Ghana_cities, BT_cities, or Nigeria_cities in line 75
+//  5. Select the ecological zones for the corresponding country by using Ghana_ecoregions, BT_ecoregions or Nigeria_ecoregions in script line 85
+// 6. Comment on and off between script lines 94 - 97 to select the predicted Random forest impervious cover for the specified country
+// 7. Comment on and off between script lines 102 - 105 to select the fitted LandTrendr impervious cover for the specified country
 // 8. To see the accuracy statistics select the validation points for the specified country using Ghana_val_pts, BT-val_pts, or Nigeria_val_pts
-// in script line 112
-// 9. Export the binary classification images. The default output export location is GD (line 1125)
+// in script line 115
+// 9. Export the binary classification images. The default output export location is GD (line 1128)
 
 // =====================================================================================================================//
 //                    STEP ONE: DETERMINE THE YEAR, OUTPUT DATA NAME AND EXPORT FOLDER PATH
