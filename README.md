@@ -75,7 +75,7 @@ Run the training and validation exports in the task panel, the RF percent imperv
 
 ###### Table 1: Export locations of RF percent impervious covers from 2001 – 2020.
 
-RF Image Collection Location for each Country                               
+###### RF Image Collection Location for each Country                               
 Ghana              projects/ee-koraha/assets/Ghana_ImperCov_RF_1y
 
 Togo and Benin     projects/ee-koraha/assets/Benin_Togo_ImperCov_RF_1y
@@ -108,10 +108,13 @@ When the script is run, LT applies a linear regression model to each pixel in th
 
 ###### Table 2: Export locations of LT percent impervious covers from 2001 – 2020.
 
-LT Image Collection GEE Assets	for each Country
+###### LT Image Collection GEE Assets	for each Country
 Ghana               projects/ee-koraha/assets/Ghana_ImperCov_LT_1y	
-Togo and Benin      projects/ee-koraha/assets/BT_ImperCov_LT_1y	       
-Nigeria             users/owitt83/Nigeria_Model1_ImperCov_LT_1y	    
+
+Togo and Benin      projects/ee-koraha/assets/BT_ImperCov_LT_1y	     
+
+Nigeria             users/owitt83/Nigeria_Model1_ImperCov_LT_1y	 
+
 Nigeria             users/owitt83/Nigeria_Model2_ImperCov_LT_1y	     
 
 ##### 2.4 Script #4: WADISC_4_DevClass
