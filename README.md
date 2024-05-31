@@ -48,8 +48,8 @@ The variables yearS  is the beginning month for yearC and yearE is the last mont
 ###### 2.1.3. Study Area:
 The variable studycountries defines the area extent to generate composites. The default setting is Ghana, and one can set it to create composites for any area extent. In this script, users can adjust the studycountries using Ghana, TB (Togo and Benin), and Nigeria. 
 
-###### 2.1.4.
-Export Image Composite: When the script is run, spectral indices will automatically be calculated for yearC and the defined studycountries. After running this script, the Task Manager (in the right-hand side panel) will be highlighted in yellow, prompting you to click the RUN button to export the composite image. If you click on run, the image collection of indices for yearC is automatically saved in GEE assets unless you set it for export to Google Drive. The exported composites from this script will be used as inputs in the second script.
+###### 2.1.4. Export Image Composite:
+When the script is run, spectral indices will automatically be calculated for yearC and the defined studycountries. After running this script, the Task Manager (in the right-hand side panel) will be highlighted in yellow, prompting you to click the RUN button to export the composite image. If you click on run, the image collection of indices for yearC is automatically saved in GEE assets unless you set it for export to Google Drive. The exported composites from this script will be used as inputs in the second script.
 
 ##### 2.2. Script#2: WADISC_2_ImperCover_RF
 
@@ -75,11 +75,11 @@ Run the training and validation exports in the task panel, the RF percent imperv
 
 ###### Table 1: Export locations of RF percent impervious covers from 2001 – 2020.
 
-RF Image Collection Name	                                Countries
-projects/ee-koraha/assets/Ghana_ImperCov_RF_1y	            Ghana
-projects/ee-koraha/assets/Benin_Togo_ImperCov_RF_1y	        Togo and Benin
-projects/ee-koraha/assets/Nigeria_NLF_GFS_ImperCov_RF_1y	  Nigeria
-projects/ee-koraha/assets/Nigeria_WSS_ImperCov_RF_1y	      Nigeria
+RF Image Collection Name	                                |Countries
+projects/ee-koraha/assets/Ghana_ImperCov_RF_1y	          |Ghana
+projects/ee-koraha/assets/Benin_Togo_ImperCov_RF_1y	      |Togo and Benin
+projects/ee-koraha/assets/Nigeria_NLF_GFS_ImperCov_RF_1y	|Nigeria
+projects/ee-koraha/assets/Nigeria_WSS_ImperCov_RF_1y	    |Nigeria
 
 ##### 2.3 Script#3: WADISC_3_ImperCover_LT
 
