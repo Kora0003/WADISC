@@ -36,7 +36,7 @@ These scripts are available in WADISC GEE scripts archive: https://code.eartheng
 
 All the GEE assets are configured for read-only access, and users cannot store new assets in users/koraha/WADISC. However, users can modify the scripts to store new assets in their GEE cloud storage.
 
-2.1 Script #1: WADISC_1_Composites. 
+##### 2.1 Script #1: WADISC_1_Composites. 
 The first GEE script generates spectral indices, creates annual composites of indices, and exports the composites to GEE Assets or Google Drive. Users can modify several parameters of the script depending on their preferences, including study year to generate composite, composite time window, study countries, and image export. 
 
 2.1.1. Study Year: The variable yearC allows users to set the year to generate annual composite. The default yearC is 2001, meaning running the script will generate the annual spectral composite for 2001.
@@ -47,7 +47,8 @@ The first GEE script generates spectral indices, creates annual composites of in
 
 2.1.4. Export Image Composite: When the script is run, spectral indices will automatically be calculated for yearC and the defined studycountries. After running this script, the Task Manager (in the right-hand side panel) will be highlighted in yellow, prompting you to click the RUN button to export the composite image. If you click on run, the image collection of indices for yearC is automatically saved in GEE assets unless you set it for export to Google Drive. The exported composites from this script will be used as inputs in the second script.
 
-2.2. Script#2: WADISC_2_ImperCover_RF
+##### 2.2. Script#2: WADISC_2_ImperCover_RF
+
 The second script performs Random Forest regression using annual spectral composites and generates percent annual impervious cover estimates. Users can adjust sections of the script before generating Random Forest (RF) impervious cover estimates, ncluding study year, annual spectral composites as inputs, observation data, and output exports. 
 
 2.2.1. Study Year:  The yearC variable allows users to choose which year to generate RF impervious cover predictions. An input of 2001 in yearC will create RF impervious cover for 2001. In this script, you can only generate RF predictions for a particular year if you have already generated the annual spectral composite (script#1) and stored it in GEE asset. 
@@ -70,7 +71,8 @@ projects/ee-koraha/assets/Benin_Togo_ImperCov_RF_1y	        Togo and Benin
 projects/ee-koraha/assets/Nigeria_NLF_GFS_ImperCov_RF_1y	  Nigeria
 projects/ee-koraha/assets/Nigeria_WSS_ImperCov_RF_1y	      Nigeria
 
-2.3 Script#3: WADISC_3_ImperCover_LT
+##### 2.3 Script#3: WADISC_3_ImperCover_LT
+
 The third script applies the LandTrendr algorithm (Kennedy et al., 2010) to fit a temporally segmented piecewise regression model for each pixel in the percent impervious cover time series products from RF. Thus, LandTrendr (LT) smoothed the RF percent impervious cover time series to minimize year-to-year noise and fill data gaps. The final outputs after applying LT represent the impervious cover data for WADISC. The LT impervious cover data will be used as input in the fourth and final script.
 
 2.3.1 Study Year: The variable yearC operates as in scripts one and two. The LT algorithm is applied on all the impervious cover series from RF. Before generating the final impervious cover for each year, users need to specify the initial year (year_init) and the final year (year_final). The yearC can be any year within the time series. 
@@ -92,7 +94,8 @@ projects/ee-koraha/assets/BT_ImperCov_LT_1y	       Togo and Benin
 users/owitt83/Nigeria_Model1_ImperCov_LT_1y	       Nigeria
 users/owitt83/Nigeria_Model2_ImperCov_LT_1y	       Nigeria
 
-2.4 Script #4: WADISC_4_DevClass
+##### 2.4 Script #4: WADISC_4_DevClass
+
 The fourth and final script involves change detection. We classified the impervious cover data into developed and undeveloped and applied a rule-based filter to remove unrealistic changes. 
 
 2.4.1 Study Year: The variable yearC operates similarly to previous scripts. 
