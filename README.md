@@ -3,14 +3,14 @@
 
 
 
-### User Guide Version 1.1
-### April 31, 2023
+## User Guide Version 1.1
+## April 31, 2023
 
 
 
 
 
-### Authors
+## Authors
 ### Andrews Korah; Michael C. Wimberly
 ### Department of Geography and Environmental Sustainability, University of Oklahoma, Norman, OK, 73019, USA
 
@@ -24,9 +24,10 @@ Korah, A., & Wimberly, M. (2024). WADISC: Annual Impervious Surface Data for Gha
 
 Most African countries are rapidly increasing their impervious areas, including paved roads, concrete, and building roofs. Because global impervious datasets are not necessarily suitable for regional scale urban expansion analysis, and local data are often inconsistent across cities and countries, we leveraged the Google Earth Engine cloud computing platform and the Landsat archive to generate consistent regional data for the whole of Ghana, Togo, Benin, and Nigeria from 2001 – 2020. These data can assist modelers, researchers, and interested stakeholders in conducting large-scale regional assessments of urban expansion and its impacts on people and the environment and making future projections for multiple countries in West Africa. This guide shows the major steps used to generate the West Africa Dataset of Impervious Surface Change (WADISC).
 
-2. Components of WADISC in Google Earth Engine
+#### 2. Components of WADISC in Google Earth Engine
+
 We used four scripts to generate annual impervious surface cover and developed area classification in WADISC.
-	1. WADISC_1_Composites
+1. WADISC_1_Composites
 2. WADISC_2_ImperCover_RF
 3. WADISC_3_ImperCover_LT
 4. WADISC_4_DevClass
@@ -104,5 +105,6 @@ The fourth and final script involves change detection. We classified the impervi
 
 2.4.5. Export Classified Images: When the script is run, it will generate the developed area classification, and in the task panel the image can be exported as a GEE asset or exported to Google Drive (default settings). The script also generates summaries of total developed area, and annual changes for each study area extent, major ecological zones, and cities within each country (using Africapolis city boundaries). Thus, users can generate summaries of the classified data for any extent and export as CSV.
 
-Reference
+#### Reference
+
 Kennedy, R. E., Yang, Z., & Cohen, W. B. (2010). Detecting trends in forest disturbance and recovery using yearly Landsat time series: 1. LandTrendr — Temporal segmentation algorithms. Remote Sensing of Environment, 114(12), 2897‐2910
