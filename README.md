@@ -75,10 +75,13 @@ Run the training and validation exports in the task panel, the RF percent imperv
 
 ###### Table 1: Export locations of RF percent impervious covers from 2001 – 2020.
 
-RF Image Collection Name	                                |Countries
-projects/ee-koraha/assets/Ghana_ImperCov_RF_1y	          |Ghana
+RF Image Collection Name	                               
+projects/ee-koraha/assets/Ghana_ImperCov_RF_1y	          # Ghana
+
 projects/ee-koraha/assets/Benin_Togo_ImperCov_RF_1y	      |Togo and Benin
+
 projects/ee-koraha/assets/Nigeria_NLF_GFS_ImperCov_RF_1y	|Nigeria
+
 projects/ee-koraha/assets/Nigeria_WSS_ImperCov_RF_1y	    |Nigeria
 
 ##### 2.3 Script#3: WADISC_3_ImperCover_LT
