@@ -3,24 +3,25 @@
 
 
 
-# User Guide Version 1.1
-# April 31, 2023
+### User Guide Version 1.1
+### April 31, 2023
 
 
 
 
 
-# Authors
-Andrews Korah; Michael C. Wimberly
-# Department of Geography and Environmental Sustainability, University of Oklahoma, Norman, OK, 73019, USA
+### Authors
+### Andrews Korah; Michael C. Wimberly
+### Department of Geography and Environmental Sustainability, University of Oklahoma, Norman, OK, 73019, USA
 
-# Citation:
+### Citation:
 Korah, A., & Wimberly, M. (2024). WADISC: Annual Impervious Surface Data for Ghana, Togo, Benin, and Nigeria from 2001 – 2020 [Dataset]. figshare. https://doi.org/10.6084/m9.figshare.24716481.v3
 
 
 
 
-1. Introduction
+#### 1. Introduction
+
 Most African countries are rapidly increasing their impervious areas, including paved roads, concrete, and building roofs. Because global impervious datasets are not necessarily suitable for regional scale urban expansion analysis, and local data are often inconsistent across cities and countries, we leveraged the Google Earth Engine cloud computing platform and the Landsat archive to generate consistent regional data for the whole of Ghana, Togo, Benin, and Nigeria from 2001 – 2020. These data can assist modelers, researchers, and interested stakeholders in conducting large-scale regional assessments of urban expansion and its impacts on people and the environment and making future projections for multiple countries in West Africa. This guide shows the major steps used to generate the West Africa Dataset of Impervious Surface Change (WADISC).
 
 2. Components of WADISC in Google Earth Engine
