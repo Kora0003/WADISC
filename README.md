@@ -32,7 +32,8 @@ We used four scripts to generate annual impervious surface cover and developed a
 3. WADISC_3_ImperCover_LT
 4. WADISC_4_DevClass
 
-These scripts are available in WADISC GEE scripts archive: https://code.earthengine.google.com/?accept_repo=users/koraha/WADISC.
+These scripts are available in WADISC GEE scripts archive: 
+https://code.earthengine.google.com/?accept_repo=users/korahandrews/WADISC
 
 All the GEE assets are configured for read-only access, and users cannot store new assets in users/koraha/WADISC. However, users can modify the scripts to store new assets in their GEE cloud storage.
 
